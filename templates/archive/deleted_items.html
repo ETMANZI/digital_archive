@@ -295,9 +295,9 @@
                     <button class="btn-sm-restore" onclick="restoreFile({{ file.id }})">
                       <i class="fas fa-undo-alt"></i> Restore
                     </button>
-                    <button class="btn-sm-permanent" onclick="permanentDeleteFile({{ file.id }})">
+                    {% comment %} <button class="btn-sm-permanent" onclick="permanentDeleteFile({{ file.id }})">
                       <i class="fas fa-trash-alt"></i> Parmanent Delete
-                    </button>
+                    </button> {% endcomment %}
                    </td>
                  </tr>
                 {% empty %}
@@ -346,9 +346,9 @@
                     <button class="btn-sm-restore" onclick="restoreFolder({{ folder.id }})">
                       <i class="fas fa-undo-alt"></i> Restore
                     </button>
-                    <button class="btn-sm-permanent" onclick="permanentDeleteFolder({{ folder.id }})">
+                    {% comment %} <button class="btn-sm-permanent" onclick="permanentDeleteFolder({{ folder.id }})">
                       <i class="fas fa-trash-alt"></i> Permanent Delete
-                    </button>
+                    </button> {% endcomment %}
                    </td>
                  </tr>
                 {% empty %}
