@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="text-center">
+    <i class="fas fa-check-circle text-info" style="font-size: 64px;"></i>
+    <h2 class="mt-3">Already Signed</h2>
+    <p>This document has already been signed by you.</p>
+      <a href="{% url 'archive:home' %}" class="btn btn-primary mt-3">
+      <i class="fas fa-tachometer-alt"></i> Back to Dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

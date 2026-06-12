@@ -1,0 +1,799 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Home – Digital Archive{% endblock %}
+
+{% block content %}
+<div class="home-container">
+  <div class="filters-panel">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fas fa-layer-group"></i> Collection</label>
+        <select id="collectionFilter">
+          <option value="all">All collections</option>
+          {% for collection in collections %}
+            <option value="{{ collection.id }}">{{ collection.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label><i class="fas fa-flag"></i> Status</label>
+        <select id="statusFilter">
+          <option value="all">All</option>
+          <option>Draft</option><option>Published</option><option>Archived</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label><i class="fas fa-tags"></i> Tag</label>
+        <select id="tagFilter">
+          <option value="all">All tags</option>
+          {% for tag in tags %}
+            <option value="{{ tag.name }}">{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group customer-search-group">
+        <label><i class="fas fa-user"></i> Customer</label>
+        <input type="text" id="customerSearchInput" placeholder="Customer ID or name..." autocomplete="off">
+        <input type="hidden" id="customerIdFilter" value="">
+        <div id="customerAutocompleteResults" class="autocomplete-results"></div>
+      </div>
+      <div class="search-wrapper">
+        <label>Search</label>
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Title, description, tags...">
+      </div>
+    </div>
+    <div class="filter-row">
+      <div class="search-wrapper folder-search-wrapper">
+        <label><i class="fas fa-folder"></i> Folder search</label>
+        <i class="fas fa-search"></i>
+        <input type="text" id="folderSearchInput" name="q" placeholder="Search by folder name (e.g., 'collateral') or file name" autocomplete="off">
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+      <button id="resetFiltersBtn" class="reset-btn"><i class="fas fa-undo-alt"></i> Reset filters</button>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content: space-between; align-items: center; margin: 1rem 0 1.2rem 0;">
+    <span class="result-count" id="resultCount">{{ page_obj.paginator.count }} items</span>
+    {% if user.is_authenticated and not user.is_auditor %}
+      {% if user.is_superuser or user.is_archive_manager or user.is_contributor %}
+        <button id="openNewItemModalBtn" class="new-item-btn"><i class="fas fa-plus-circle"></i> New item</button>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div id="archiveGrid" class="archive-grid">
+    {% for item in page_obj %}
+      <div class="archive-card" data-id="{{ item.id }}">
+        <div class="card-header">
+          <span class="card-title">{{ item.title }}</span>
+          <span class="status-badge {{ item.status.name|lower }}">{{ item.status.name }}</span>
+        </div>
+        <div class="customer-row">
+          <i class="fas {% if item.document_type == 'loan' %}fa-file-invoice{% elif item.document_type == 'department' %}fa-building{% else %}fa-globe{% endif %}"></i>
+          <span class="doc-type-badge">{{ item.get_document_type_display }}</span>
+          {% if item.document_type == 'loan' and item.customer_id %}
+            <a href="{% url 'archive:customer_detail' customer_id=item.customer_id %}" class="customer-link">{{ item.client_name }}</a>
+            <span class="customer-id">(ID: {{ item.customer_id }})</span>
+          {% elif item.document_type == 'loan' %}
+            <span class="customer-id">Incomplete loan data</span>
+          {% else %}
+            <a href="{% url 'archive:document_detail' item.id %}" class="customer-link">View details</a>
+          {% endif %}
+          {% if not item.can_view %}
+            <span class="lock-icon" title="You don't have access to this document. Click to request access on the detail page.">
+              <i class="fas fa-lock"></i>
+            </span>
+          {% endif %}
+          {% if item.item_count > 1 %}
+            <span class="item-count-badge">{{ item.item_count }} docs</span>
+          {% endif %}
+        </div>
+        <div class="card-meta">
+          <span><i class="far fa-calendar-alt"></i> {{ item.created_at|date:"Y-m-d" }}</span>
+          <span><i class="fas fa-folder"></i> {{ item.collection.name }}</span>
+        </div>
+        <div class="description-preview">{{ item.description|truncatechars:70 }}</div>
+        <div class="tag-list">
+          {% for tag in item.tags.all %}
+            <span class="tag-chip">#{{ tag.name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="empty-state"><i class="fas fa-database fa-2x"></i><p>No items yet.</p></div>
+    {% endfor %}
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">&laquo; Previous</a>{% endif %}
+      <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next &raquo;</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Add/Edit Modal – Modern Redesign -->
+<div id="itemModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modalHeading"><i class="fas fa-file-alt"></i> Add / Edit Document</h3>
+      <button class="close-modal" id="closeModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Document Type -->
+      <div class="form-group">
+        <label>Document Type <span class="required">*</span></label>
+        <select id="modalDocumentType" class="form-control">
+          <option value="loan">Loan Document</option>
+          <option value="department">Department Document</option>
+          <option value="public">Public Document</option>
+        </select>
+      </div>
+
+      <!-- Loan fields (conditionally shown) -->
+      <div id="loanFields">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Client Name <span class="loan-required">*</span></label>
+            <input type="text" id="modalClientName" class="form-control" placeholder="e.g., John Doe">
+          </div>
+          <div class="form-group">
+            <label>Customer ID <span class="loan-required">*</span></label>
+            <input type="text" id="modalCustomerId" class="form-control" placeholder="e.g., CUST12345">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Loan ID <span class="loan-required">*</span></label>
+            <input type="text" id="modalLoanId" class="form-control" placeholder="e.g., LN-2024-001">
+          </div>
+          <div class="form-group">
+            <label>Period</label>
+            <input type="text" id="modalPeriod" class="form-control" placeholder="e.g., Annual Review 2024">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Product Type</label>
+            <input type="text" id="modalProductType" class="form-control" placeholder="e.g., Mortgage">
+          </div>
+          <div class="form-group">
+            <label>Disbursement Date</label>
+            <input type="date" id="modalDisbursementDate" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Loan Status</label>
+          <select id="modalLoanStatus" class="form-control">
+            <option value="active">Active</option>
+            <option value="closed">Closed</option>
+            <option value="defaulted">Defaulted</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Common fields -->
+      <div class="form-group">
+        <label>Title <span class="required">*</span></label>
+        <input type="text" id="modalTitleInput" class="form-control" required placeholder="Enter a descriptive title">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="modalStatus" class="form-control">
+            <option>Draft</option><option>Published</option><option>Archived</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Collection</label>
+          <select id="modalCollection" class="form-control">
+            {% for c in collections %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tags (comma separated)</label>
+        <input type="text" id="modalTags" class="form-control" placeholder="mortgage, signed, 2024">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="modalDesc" rows="3" class="form-control" placeholder="Additional details..."></textarea>
+      </div>
+
+      <!-- File attachments -->
+      <div class="file-section">
+        <label><i class="fas fa-paperclip"></i> Documents</label>
+        <div id="fileListContainer" class="file-list"></div>
+        <button type="button" id="addFileBtn" class="add-file-btn"><i class="fas fa-plus"></i> Add file</button>
+        <input type="file" id="hiddenFileInput" multiple accept=".pdf,.docx,.jpg,.png" style="display:none">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="cancelModalBtn">Cancel</button>
+      <button class="btn-primary" id="confirmSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ========== GLOBAL STYLES ========== */
+  .home-container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+  .filters-panel { background: white; border-radius: 1.5rem; padding: 1.2rem 1.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 1rem; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
+  .filter-group, .search-wrapper { flex: 1; min-width: 140px; position: relative; }
+  .filter-group label, .search-wrapper label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #4b5563; margin-bottom: 0.3rem; }
+  .filter-group select, .search-wrapper input, .customer-search-group input[type="text"] { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; background: white; font-size: 0.8rem; box-sizing: border-box; }
+  .search-wrapper i { position: absolute; left: 0.75rem; bottom: 0.6rem; color: #94a3b8; font-size: 0.8rem; }
+  .search-wrapper input { padding-left: 2rem; }
+  .reset-btn { background: #f1f5f9; border: none; padding: 0.5rem 1rem; border-radius: 2rem; font-size: 0.75rem; cursor: pointer; }
+  .new-item-btn { background: #1e293b; color: white; border: none; padding: 0.5rem 1.2rem; border-radius: 2rem; font-size: 0.8rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+  .result-count { font-size: 0.8rem; color: #475569; font-weight: 500; }
+  .archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; margin: 1rem 0; }
+  .archive-card { background: white; border-radius: 1.2rem; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease; border: 1px solid #eef2ff; }
+  .archive-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.05); }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+  .card-title { font-weight: 700; font-size: 1rem; color: #0f172a; }
+  .status-badge { font-size: 0.65rem; padding: 0.2rem 0.6rem; border-radius: 30px; text-transform: capitalize; font-weight: 600; }
+  .status-badge.draft, .status-badge.Draft { background: #fef9c3; color: #854d0e; }
+  .status-badge.published, .status-badge.Published { background: #dcfce7; color: #166534; }
+  .status-badge.archived, .status-badge.Archived { background: #f1f5f9; color: #334155; }
+  .customer-row { margin-bottom: 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+  .customer-link { color: #2563eb; text-decoration: none; font-weight: 500; }
+  .customer-link:hover { text-decoration: underline; }
+  .customer-id { color: #64748b; font-size: 0.7rem; }
+  .item-count-badge { background: #dbeafe; color: #1d4ed8; border-radius: 30px; padding: 0.15rem 0.5rem; font-size: 0.65rem; font-weight: 600; margin-left: 0.3rem; }
+  .lock-icon { color: #f59e0b; margin-left: 0.3rem; font-size: 0.7rem; cursor: help; }
+  .card-meta { display: flex; gap: 1rem; font-size: 0.7rem; color: #64748b; margin-bottom: 0.6rem; }
+  .description-preview { font-size: 0.75rem; color: #334155; margin: 0.5rem 0; line-height: 1.4; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }
+  .tag-chip { background: #eef2ff; padding: 0.2rem 0.6rem; border-radius: 30px; font-size: 0.65rem; color: #1e293b; }
+  .pagination { display: flex; justify-content: center; gap: 1rem; margin-top: 2rem; align-items: center; }
+  .pagination a { text-decoration: none; background: white; padding: 0.4rem 0.8rem; border-radius: 2rem; font-size: 0.8rem; color: #1e293b; border: 1px solid #e2e8f0; }
+
+  /* Additional badges */
+  .doc-type-badge { background: #eef2ff; padding: 0.1rem 0.5rem; border-radius: 2rem; font-size: 0.7rem; font-weight: 500; }
+  .loan-required { color: #dc2626; display: none; }
+
+  /* ========== CUSTOMER AUTOCOMPLETE DROPDOWN (FIXED) ========== */
+  .customer-search-group {
+    position: relative;
+    z-index: 100;
+  }
+  .autocomplete-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 1050;          /* ensure it's above other elements */
+    display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    margin-top: 4px;
+  }
+  .autocomplete-results .result-item {
+    padding: 0.6rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.1s;
+  }
+  .autocomplete-results .result-item:hover {
+    background: #f8fafc;
+  }
+  .autocomplete-results .result-item strong {
+    color: #0f172a;
+  }
+
+  /* ========== MODAL – WIDER ========== */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
+  .modal-overlay.active { display: flex; }
+  .modal-card {
+    background: white;
+    border-radius: 1.5rem;
+    width: 90%;
+    max-width: 850px !important;   /* increased width */
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 35px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #eef2ff;
+    background: #fafcff;
+    flex-shrink: 0;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #64748b;
+    transition: 0.2s;
+  }
+  .close-modal:hover {
+    color: #dc2626;
+  }
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    color: #1f2937;
+  }
+  .form-group .required {
+    color: #dc2626;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .form-control {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    transition: 0.2s;
+  }
+  .form-control:focus {
+    outline: none;
+    border-color: #1e293b;
+    box-shadow: 0 0 0 2px rgba(30,41,59,0.1);
+  }
+  textarea.form-control {
+    resize: vertical;
+  }
+  .file-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eef2ff;
+  }
+  .file-section label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #1f2937;
+  }
+  .file-list {
+    background: #f8fafc;
+    border-radius: 1rem;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #eef2ff;
+  }
+  .file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    margin: 0.3rem 0;
+    padding: 0.4rem 0.8rem;
+    border-radius: 2rem;
+    border: 1px solid #e2e8f0;
+    font-size: 0.75rem;
+  }
+  .file-name-input {
+    flex: 1;
+    margin-right: 0.5rem;
+    background: transparent;
+    border: none;
+    font-size: 0.8rem;
+    padding: 0.1rem;
+  }
+  .file-name-input:focus {
+    outline: none;
+    border-bottom: 1px solid #1e293b;
+  }
+  .remove-file-btn, .remove-existing-btn, .remove-new-btn {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.2rem;
+  }
+  .add-file-btn {
+    background: #eef2ff;
+    border: none;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .add-file-btn:hover {
+    background: #e0e7ff;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #eef2ff;
+    background: white;
+    flex-shrink: 0;
+  }
+  .modal-cancel {
+    background: #f1f5f9;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  .btn-primary {
+    background: #1e293b;
+    color: white;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 600px) {
+    .filter-row { flex-direction: column; align-items: stretch; }
+    .modal-card { width: 95%; max-height: 90vh; }
+    .modal-body { padding: 1rem; }
+    .form-row { grid-template-columns: 1fr; gap: 0.5rem; }
+  }
+</style>
+
+<script>
+  const CSRF_COOKIE_NAME = 'app1_csrftoken';
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  let isSaving = false;
+  let editMode = false;
+  let editItemId = null;
+  let pendingFiles = [];
+  let existingFiles = [];
+  let autocompleteTimer = null;
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // API
+  async function fetchItemsFromAPI(filters = {}) {
+    const clean = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '' && v !== 'all'));
+    const res = await fetch(`/api/archive-items/?${new URLSearchParams(clean)}`);
+    if (!res.ok) throw new Error('Network error');
+    return await res.json();
+  }
+
+  // File list rendering
+  function renderFullFileList() {
+    const container = document.getElementById('fileListContainer');
+    if (!container) return;
+    let html = '';
+    existingFiles.forEach((file, idx) => {
+      if (!file.markedForDeletion) {
+        html += `<div class="file-item" data-existing-idx="${idx}">
+          <span><i class="fas fa-file-alt"></i> ${escapeHtml(file.name)}</span>
+          <button class="remove-existing-btn" data-uuid="${file.uuid}"><i class="fas fa-trash-alt"></i></button>
+        </div>`;
+      }
+    });
+    pendingFiles.forEach((fileObj, idx) => {
+      html += `<div class="file-item" data-new-idx="${idx}">
+        <input type="text" class="file-name-input" value="${escapeHtml(fileObj.customName)}" data-idx="${idx}">
+        <button class="remove-new-btn" data-idx="${idx}"><i class="fas fa-trash-alt"></i></button>
+      </div>`;
+    });
+    container.innerHTML = html || '<p style="font-size:0.75rem;color:#94a3b8;margin:0.5rem;">No files attached.</p>';
+
+    container.querySelectorAll('.remove-existing-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const f = existingFiles.find(f => f.uuid === btn.dataset.uuid);
+        if (f) { f.markedForDeletion = true; renderFullFileList(); }
+      });
+    });
+    container.querySelectorAll('.file-name-input').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const idx = parseInt(inp.dataset.idx);
+        if (!isNaN(idx) && pendingFiles[idx]) pendingFiles[idx].customName = inp.value;
+      });
+    });
+    container.querySelectorAll('.remove-new-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingFiles.splice(parseInt(btn.dataset.idx), 1);
+        renderFullFileList();
+      });
+    });
+  }
+
+  // Modal management
+  function toggleLoanFields() {
+    const docType = document.getElementById('modalDocumentType').value;
+    const isLoan = docType === 'loan';
+    document.getElementById('loanFields').style.display = isLoan ? 'block' : 'none';
+    const requiredSpans = document.querySelectorAll('.loan-required');
+    requiredSpans.forEach(span => span.style.display = isLoan ? 'inline' : 'none');
+    ['modalClientName','modalCustomerId','modalLoanId'].forEach(id => {
+      document.getElementById(id).required = isLoan;
+    });
+  }
+
+  function resetModalToAddMode() {
+    editMode = false; editItemId = null;
+    pendingFiles = []; existingFiles = [];
+    const fields = ['modalClientName','modalCustomerId','modalLoanId','modalPeriod',
+                    'modalProductType','modalDisbursementDate','modalTitleInput','modalTags','modalDesc',
+                    'modalDocumentType'];
+    fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('modalStatus').value = 'Draft';
+    document.getElementById('modalLoanStatus').value = 'active';
+    document.getElementById('modalHeading').innerHTML = '<i class="fas fa-file-alt"></i> Add Document';
+    renderFullFileList();
+    toggleLoanFields();
+  }
+
+  async function saveItem() {
+    if (isSaving) return;
+    isSaving = true;
+    const btn = document.getElementById('confirmSaveBtn');
+    const original = btn.innerText;
+    btn.disabled = true; btn.innerText = 'Saving…';
+    try {
+      const docType = document.getElementById('modalDocumentType').value;
+      const title = document.getElementById('modalTitleInput').value.trim();
+      if (!title) throw new Error('Title is required.');
+      let clientName = '', customerId = '', loanId = '';
+      if (docType === 'loan') {
+        clientName = document.getElementById('modalClientName').value.trim();
+        customerId = document.getElementById('modalCustomerId').value.trim();
+        loanId = document.getElementById('modalLoanId').value.trim();
+        if (!clientName || !customerId || !loanId)
+          throw new Error('For loan documents, Client Name, Customer ID, and Loan ID are required.');
+      }
+      const formData = new FormData();
+      formData.append('document_type', docType);
+      formData.append('title', title);
+      formData.append('client_name', clientName);
+      formData.append('customer_id', customerId);
+      formData.append('loan_id', loanId);
+      formData.append('period', document.getElementById('modalPeriod').value);
+      formData.append('product_type', document.getElementById('modalProductType').value);
+      formData.append('date_of_disbursement', document.getElementById('modalDisbursementDate').value);
+      formData.append('loan_status', document.getElementById('modalLoanStatus').value);
+      formData.append('status', document.getElementById('modalStatus').value);
+      formData.append('collection_id', document.getElementById('modalCollection').value);
+      formData.append('description', document.getElementById('modalDesc').value);
+      formData.append('tags', document.getElementById('modalTags').value);
+      pendingFiles.forEach((f, idx) => {
+        formData.append(`file_${idx}`, f.file);
+        formData.append(`file_name_${idx}`, f.customName);
+      });
+
+      const headers = { 'X-CSRFToken': getCookie(CSRF_COOKIE_NAME) };
+      let url;
+      if (editMode && editItemId) {
+        formData.append('_method', 'PUT');
+        formData.append('delete_file_uuids', JSON.stringify(existingFiles.filter(f => f.markedForDeletion).map(f => f.uuid)));
+        url = `/api/archive-items/${editItemId}/update/`;
+      } else {
+        url = '/api/archive-items/';
+      }
+      const res = await fetch(url, { method: 'POST', headers, body: formData });
+      if (!res.ok) throw new Error((await res.json()).error || 'Save failed');
+      document.getElementById('itemModal').classList.remove('active');
+      resetModalToAddMode();
+      applyFiltersAndRender();
+      alert('Item saved successfully!');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      isSaving = false;
+      btn.disabled = false;
+      btn.innerText = original;
+    }
+  }
+
+  // Grid rendering with correct links
+  function renderGrid(data) {
+    const grid = document.getElementById('archiveGrid');
+    const resultSpan = document.getElementById('resultCount');
+    if (!grid) return;
+    const items = Array.isArray(data) ? data : (data.items || []);
+    const total = data.total ?? items.length;
+    if (items.length === 0) {
+      grid.innerHTML = `<div class="empty-state"><i class="fas fa-database fa-2x"></i><p>No items match the filters.</p></div>`;
+      resultSpan.innerText = '0 items';
+      return;
+    }
+    resultSpan.innerText = `${total} item${total !== 1 ? 's' : ''}`;
+    grid.innerHTML = items.map(item => {
+      const statusClass = (item.status || '').toLowerCase();
+      const docType = item.document_type || 'loan';
+      const docTypeLabel = docType === 'loan' ? 'Loan' : (docType === 'department' ? 'Dept.' : 'Public');
+      const docIcon = docType === 'loan' ? 'fa-file-invoice' : (docType === 'department' ? 'fa-building' : 'fa-globe');
+      const lockIcon = (item.can_view === false)
+        ? `<span class="lock-icon" title="You don't have access to this document. Click to request access on the detail page.">
+             <i class="fas fa-lock"></i>
+           </span>`
+        : '';
+      let customerHtml = '';
+      if (docType === 'loan' && item.customer_id) {
+        customerHtml = `<a href="/customer/${escapeHtml(item.customer_id)}/" class="customer-link">${escapeHtml(item.client_name)}</a>
+                        <span class="customer-id">(ID: ${escapeHtml(item.customer_id)})</span>`;
+      } else if (docType === 'loan') {
+        customerHtml = `<span class="customer-id">Incomplete loan data</span>`;
+      } else {
+        customerHtml = `<a href="/document/${item.id}/" class="customer-link">View details</a>`;
+      }
+      return `
+        <div class="archive-card" data-id="${item.id}">
+          <div class="card-header">
+            <span class="card-title">${escapeHtml(item.title)}</span>
+            <span class="status-badge ${statusClass}">${escapeHtml(item.status)}</span>
+          </div>
+          <div class="customer-row">
+            <i class="fas ${docIcon}"></i>
+            <span class="doc-type-badge">${docTypeLabel}</span>
+            ${customerHtml}
+            ${lockIcon}
+          </div>
+          <div class="card-meta">
+            <span><i class="far fa-calendar-alt"></i> ${item.created_at || ''}</span>
+            <span><i class="fas fa-folder"></i> ${escapeHtml(item.collection_name || '')}</span>
+          </div>
+          <div class="description-preview">${escapeHtml((item.description || '').substring(0, 70))}</div>
+          <div class="tag-list">${(item.tags || []).map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // Filters
+  function getFilters() {
+    return {
+      collection:  document.getElementById('collectionFilter').value,
+      status:      document.getElementById('statusFilter').value,
+      tag:         document.getElementById('tagFilter').value,
+      search:      document.getElementById('searchInput').value.trim(),
+      customer_id: document.getElementById('customerIdFilter').value.trim(),
+    };
+  }
+
+  async function applyFiltersAndRender() {
+    try { renderGrid(await fetchItemsFromAPI(getFilters())); }
+    catch (err) { console.error('Filter error:', err); }
+  }
+
+  function resetFilters() {
+    document.getElementById('collectionFilter').value = 'all';
+    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('tagFilter').value = 'all';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('customerSearchInput').value = '';
+    document.getElementById('customerIdFilter').value = '';
+    document.getElementById('customerAutocompleteResults').style.display = 'none';
+    applyFiltersAndRender();
+  }
+
+  // Autocomplete
+  function initCustomerAutocomplete() {
+    const input    = document.getElementById('customerSearchInput');
+    const hiddenId = document.getElementById('customerIdFilter');
+    const dropdown = document.getElementById('customerAutocompleteResults');
+    let debounceTimer = null;
+    if (!input) return;
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      hiddenId.value = '';
+      if (q === '') {
+        dropdown.style.display = 'none';
+        applyFiltersAndRender();
+        return;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res  = await fetch(`/api/customer-autocomplete/?q=${encodeURIComponent(q)}`);
+          const list = await res.json();
+          if (!list.length) { dropdown.style.display = 'none'; return; }
+          dropdown.innerHTML = list.map(c =>
+            `<div class="result-item" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
+               <strong>${escapeHtml(c.name)}</strong>
+               <span class="result-detail">${escapeHtml(c.id)}</span>
+             </div>`
+          ).join('');
+          dropdown.style.display = 'block';
+        } catch (e) { console.error('Autocomplete error:', e); dropdown.style.display = 'none'; }
+      }, 250);
+      applyFiltersAndRender();
+    });
+    dropdown.addEventListener('click', (e) => {
+      const resultItem = e.target.closest('.result-item');
+      if (!resultItem) return;
+      const customerId = resultItem.dataset.id;
+      const customerName = resultItem.dataset.name;
+      input.value = `${customerName} (${customerId})`;
+      hiddenId.value = customerId;
+      dropdown.style.display = 'none';
+      applyFiltersAndRender();
+    });
+    document.addEventListener('click', (e) => {
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.style.display = 'none';
+    });
+  }
+
+  // Initialisation
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('collectionFilter')?.addEventListener('change', applyFiltersAndRender);
+    document.getElementById('statusFilter')?.addEventListener('change', applyFiltersAndRender);
+    document.getElementById('tagFilter')?.addEventListener('change', applyFiltersAndRender);
+    document.getElementById('searchInput')?.addEventListener('input', applyFiltersAndRender);
+    document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilters);
+    document.getElementById('modalDocumentType')?.addEventListener('change', toggleLoanFields);
+    document.getElementById('openNewItemModalBtn')?.addEventListener('click', () => {
+      resetModalToAddMode();
+      document.getElementById('itemModal').classList.add('active');
+    });
+    document.getElementById('closeModalBtn')?.addEventListener('click', () => document.getElementById('itemModal').classList.remove('active'));
+    document.getElementById('cancelModalBtn')?.addEventListener('click', () => document.getElementById('itemModal').classList.remove('active'));
+    document.getElementById('confirmSaveBtn')?.addEventListener('click', saveItem);
+    document.getElementById('addFileBtn')?.addEventListener('click', () => document.getElementById('hiddenFileInput').click());
+    document.getElementById('hiddenFileInput')?.addEventListener('change', e => {
+      for (const file of e.target.files) pendingFiles.push({ file, customName: file.name.replace(/\.[^/.]+$/, '') });
+      renderFullFileList();
+      e.target.value = '';
+    });
+    initCustomerAutocomplete();
+    applyFiltersAndRender();
+    toggleLoanFields();
+  });
+  document.getElementById('folderSearchInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') window.location.href = '?q=' + encodeURIComponent(this.value);
+  });
+</script>
+{% endblock %}

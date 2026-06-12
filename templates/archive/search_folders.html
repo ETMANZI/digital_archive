@@ -1,0 +1,386 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Search folders: {{ search_query }} | Loan Archive{% endblock %}
+
+{% block content %}
+<div class="search-container">
+    <div class="search-header">
+        <h1><i class="fas fa-search"></i> Search folders: "{{ search_query }}"</h1>
+        <p><strong>{{ result_count }}</strong> loan{{ result_count|pluralize }} found</p>
+        <a href="{% url 'archive:home' %}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    </div>
+
+    {% if not years_grouped %}
+        <div class="empty-state">
+            <i class="fas fa-folder-open fa-3x"></i>
+            <p>No folders found matching "{{ search_query }}".</p>
+        </div>
+    {% else %}
+        <div class="two-columns">
+            <!-- LEFT COLUMN: Year accordion -->
+            <div class="left-panel">
+                <div class="years-accordion">
+                    {% for year, items in years_grouped %}
+                        <div class="year-group">
+                            <button class="year-toggle" data-year="{{ year }}">
+                                <i class="fas fa-chevron-right"></i> {{ year }}
+                                <span class="badge">{{ items|length }} item{{ items|pluralize }}</span>
+                            </button>
+                            <div class="year-content" id="year-{{ year }}" style="display: none;">
+                                {% for item in items %}
+                                    <div class="loan-item" data-id="{{ item.id }}">
+                                        <div class="loan-item-title">
+                                            <i class="fas fa-{% if item.document_type == 'loan' %}file-invoice{% elif item.document_type == 'department' %}building{% else %}globe{% endif %}"></i>
+                                            {{ item.title }}
+                                        </div>
+                                        <div class="loan-item-meta">
+                                            <span class="status-badge {{ item.status.name|lower }}">{{ item.status.name }}</span>
+                                            <span class="doc-type">{{ item.get_document_type_display }}</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Selected item detail -->
+            <div class="right-panel" id="detailPanel">
+                <div class="detail-placeholder" id="detailPlaceholder">
+                    <i class="fas fa-hand-pointer fa-2x"></i>
+                    <p>Select an item on the left to view its folders that match "{{ search_query }}"</p>
+                </div>
+                <div id="selectedLoanContainer" style="display: none;"></div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Hidden storage for all matching items (with folder data) -->
+<div id="allLoanCards" style="display: none;">
+    {% for year, items in years_grouped %}
+        {% for item in items %}
+            <div class="loan-card" data-id="{{ item.id }}"
+                 data-title="{{ item.title }}"
+                 data-document-type="{{ item.document_type }}"
+                 data-status="{{ item.status.name }}"
+                 data-status-class="{{ item.status.name|lower }}"
+                 data-description="{{ item.description|default:'No description' }}"
+                 data-collection="{{ item.collection.name|default:'—' }}"
+                 data-created="{{ item.created_at|date:'Y-m-d H:i' }}"
+                 {% if item.document_type == 'loan' %}
+                     data-client-name="{{ item.client_name }}"
+                     data-customer-id="{{ item.customer_id }}"
+                     data-loan-id="{{ item.loan_id }}"
+                     data-period="{{ item.period|default:'—' }}"
+                     data-product-type="{{ item.product_type|default:'—' }}"
+                     data-disbursed-date="{{ item.date_of_disbursement|date:'Y-m-d' }}"
+                     data-loan-status="{{ item.get_loan_status_display }}"
+                 {% endif %}
+                 >
+                <!-- Store folders as JSON (both loan and non‑loan) -->
+                <div class="folders-data" style="display: none;">
+                    [{% for folder in item.folders.all %}
+                        {% if folder.folder_type %}
+                            {
+                                "id": {{ folder.id }},
+                                "name": "{{ folder.folder_type.name|escapejs }}",
+                                "order": {{ folder.folder_type.order|default:0 }},
+                                "files": [{% for file in folder.files.all %}
+                                    {
+                                        "asset_uuid": "{{ file.asset_uuid }}",
+                                        "file_name": "{{ file.file_name|escapejs }}",
+                                        "file_size": {{ file.file_size }},
+                                        "mime_type": "{{ file.mime_type }}"
+                                    }{% if not forloop.last %},{% endif %}
+                                {% endfor %}]
+                            }{% if not forloop.last %},{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for folder in item.doc_folders.all %}
+                        {
+                            "id": {{ folder.id }},
+                            "name": "{{ folder.name|escapejs }}",
+                            "order": 999,
+                            "files": [{% for file in folder.files.all %}
+                                {
+                                    "asset_uuid": "{{ file.asset_uuid }}",
+                                    "file_name": "{{ file.file_name|escapejs }}",
+                                    "file_size": {{ file.file_size }},
+                                    "mime_type": "{{ file.mime_type }}"
+                                }{% if not forloop.last %},{% endif %}
+                            {% endfor %}]
+                        }{% if not forloop.last %},{% endif %}
+                    {% endfor %}]
+                </div>
+            </div>
+        {% endfor %}
+    {% endfor %}
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="modal-overlay">
+    <div class="modal-card modal-large">
+        <div class="modal-header">
+            <h3><i class="fas fa-file-alt"></i> <span id="previewFileName"></span></h3>
+            <button id="closePreviewModalBtn" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <iframe id="previewFrame" src="about:blank" style="width:100%; height:70vh;" frameborder="0"></iframe>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ========== STYLES (same as before, plus a few additions) ========== */
+    .search-container { max-width: 1400px; margin: 0 auto; padding: 1rem; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
+    .search-header { background: white; border-radius: 1.5rem; padding: 1.2rem 2rem; margin-bottom: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: center; border: 1px solid #edf2f7; }
+    .search-header h1 { font-size: 1.3rem; margin: 0; color: #0f172a; }
+    .search-header p { margin: 0.2rem 0 0; color: #475569; font-size: 0.8rem; }
+    .back-link { color: #4b5563; text-decoration: none; font-size: 0.8rem; padding: 0.3rem 1rem; border-radius: 2rem; background: #f8fafc; transition: all 0.2s; }
+    .back-link:hover { background: #eef2ff; color: #1e293b; }
+    .empty-state { text-align: center; padding: 4rem; color: #94a3b8; }
+    .two-columns { display: flex; gap: 1.5rem; align-items: flex-start; }
+    .left-panel { flex: 0 0 340px; background: white; border-radius: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow: hidden; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid #edf2f7; }
+    .right-panel { flex: 1; background: white; border-radius: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.05); padding: 1.5rem; border: 1px solid #eef2ff; transition: all 0.2s; }
+    .years-accordion { padding: 0.5rem 0; }
+    .year-group { border-bottom: 1px solid #eef2ff; }
+    .year-toggle { width: 100%; text-align: left; background: white; border: none; padding: 0.7rem 1.2rem; font-weight: 600; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.6rem; transition: background 0.2s; }
+    .year-toggle:hover { background: #f8fafc; }
+    .year-toggle .badge { background: #e2e8f0; padding: 0.2rem 0.6rem; border-radius: 30px; font-size: 0.7rem; margin-left: auto; }
+    .year-content { padding: 0.2rem 0.5rem 0.6rem; }
+    .loan-item { padding: 0.5rem 1rem; margin: 0.2rem 0; border-radius: 0.75rem; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+    .loan-item:hover { background: #f1f5f9; border-color: #e2e8f0; }
+    .loan-item.active { background: #eef2ff; border-color: #c7d2fe; }
+    .loan-item-title { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.3rem; }
+    .loan-item-meta { display: flex; gap: 0.6rem; font-size: 0.65rem; color: #64748b; flex-wrap: wrap; }
+    .doc-type { background: #eef2ff; padding: 0.1rem 0.5rem; border-radius: 2rem; font-size: 0.6rem; }
+    .status-badge { font-size: 0.6rem; padding: 0.2rem 0.6rem; border-radius: 30px; font-weight: 600; text-transform: capitalize; }
+    .status-badge.draft, .status-badge.Draft { background: #fef9c3; color: #854d0e; }
+    .status-badge.published, .status-badge.Published { background: #dcfce7; color: #166534; }
+    .status-badge.archived, .status-badge.Archived { background: #f1f5f9; color: #334155; }
+
+    /* Detail panel */
+    .detail-card { animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px solid #eef2ff; }
+    .detail-title { margin: 0; font-size: 1.1rem; font-weight: 700; color: #0f172a; }
+    .detail-badges { display: flex; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; background: #fafcff; border-radius: 1rem; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #eef2ff; }
+    .detail-field { display: flex; flex-direction: column; gap: 0.2rem; }
+    .detail-field-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.3px; }
+    .detail-field-value { font-size: 0.75rem; font-weight: 500; color: #1e293b; word-break: break-word; }
+    .detail-description { background: #f8fafc; border-radius: 1rem; padding: 0.7rem 1rem; margin-bottom: 1rem; border: 1px solid #eef2ff; }
+    .detail-description p { margin: 0; font-size: 0.75rem; line-height: 1.4; color: #334155; }
+    .detail-section-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #475569; margin: 0.8rem 0 0.5rem 0; letter-spacing: 0.4px; }
+    .folder-container { margin-top: 0.5rem; }
+    .folder-item { border: 1px solid #e2e8f0; border-radius: 0.75rem; margin-bottom: 0.75rem; background: #fefefe; }
+    .folder-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.8rem; background: #f8fafc; border-radius: 0.75rem 0.75rem 0 0; cursor: pointer; font-weight: 600; font-size: 0.8rem; }
+    .folder-header:hover { background: #f1f5f9; }
+    .folder-name { display: flex; align-items: center; gap: 0.5rem; }
+    .folder-content { padding: 0.8rem; border-top: 1px solid #eef2ff; display: none; }
+    .folder-content.open { display: block; }
+    .file-item-folder { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid #eef2ff; font-size: 0.7rem; }
+    .file-actions button { background: none; border: none; cursor: pointer; color: #3b82f6; margin-left: 0.5rem; }
+    .metadata-empty { color: #94a3b8; font-size: 0.7rem; font-style: italic; padding: 0.5rem; }
+    .detail-placeholder { height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #cbd5e1; }
+    .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(3px); align-items: center; justify-content: center; z-index: 2000; }
+    .modal-overlay.active { display: flex; }
+    .modal-card { background: white; border-radius: 1rem; width: 90%; max-width: 1200px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+    .modal-large { width: 90%; max-width: 1400px; height: 85vh; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1.5rem; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+    .modal-body { flex: 1; overflow: auto; padding: 1rem; }
+    @media (max-width: 768px) { .two-columns { flex-direction: column; } .left-panel { position: static; max-height: none; } .detail-grid { grid-template-columns: 1fr; } .modal-card { width: 95%; } }
+</style>
+
+<script>
+    const allCardsContainer = document.getElementById('allLoanCards');
+    const selectedContainer = document.getElementById('selectedLoanContainer');
+    const placeholderDiv = document.getElementById('detailPlaceholder');
+    let selectedLoanId = null;
+    const searchQuery = "{{ search_query|escapejs }}";
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    function getDownloadUrl(assetUuid) {
+        return `/download/${assetUuid}/`;
+    }
+
+    // Preview modal logic
+    const modal = document.getElementById('previewModal');
+    const iframe = document.getElementById('previewFrame');
+    const fileNameSpan = document.getElementById('previewFileName');
+    const closePreviewBtn = document.getElementById('closePreviewModalBtn');
+    function openPreview(url, name) {
+        fileNameSpan.innerText = name;
+        let finalUrl = url;
+        if (name && name.toLowerCase().endsWith('.pdf')) {
+            finalUrl = url.split('#')[0] + '#toolbar=0&navpanes=0&scrollbar=0';
+        }
+        iframe.src = finalUrl;
+        modal.classList.add('active');
+    }
+    function closePreviewModal() {
+        modal.classList.remove('active');
+        iframe.src = 'about:blank';
+    }
+    if (closePreviewBtn) closePreviewBtn.addEventListener('click', closePreviewModal);
+    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closePreviewModal(); });
+
+    function transformCardToDetail(cardElement, loanId) {
+        const title = cardElement.dataset.title;
+        const docType = cardElement.dataset.documentType;
+        const status = cardElement.dataset.status;
+        const statusClass = cardElement.dataset.statusClass;
+        const description = cardElement.dataset.description;
+        const collection = cardElement.dataset.collection;
+        const created = cardElement.dataset.created;
+
+        let foldersData = [];
+        const foldersDataDiv = cardElement.querySelector('.folders-data');
+        if (foldersDataDiv) {
+            try {
+                foldersData = JSON.parse(foldersDataDiv.innerText);
+            } catch(e) { console.error('JSON parse error:', e); }
+        }
+
+        // Filter folders that match the search query
+        const lowerQuery = searchQuery.toLowerCase();
+        const filteredFolders = foldersData.filter(f => f.name.toLowerCase().includes(lowerQuery));
+
+        let foldersHtml = '';
+        if (filteredFolders.length) {
+            foldersHtml = `<div class="folder-container">`;
+            filteredFolders.forEach(f => {
+                const folderNum = f.order && f.order !== 999 ? `${f.order}. ` : '';
+                const filesHtml = f.files.map(file => `
+                    <div class="file-item-folder">
+                        <span>
+                            <i class="fas fa-file-alt"></i> 
+                            <a href="${getDownloadUrl(file.asset_uuid)}" class="file-download" target="_blank">${escapeHtml(file.file_name)}</a>
+                            (${(file.file_size/1024).toFixed(1)} KB)
+                        </span>
+                        <div class="file-actions">
+                            <button class="preview-file" data-url="${getDownloadUrl(file.asset_uuid)}" data-name="${escapeHtml(file.file_name)}"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                `).join('');
+                foldersHtml += `
+                    <div class="folder-item">
+                        <div class="folder-header">
+                            <div class="folder-name">
+                                <i class="fas fa-folder"></i> ${folderNum}${escapeHtml(f.name)}
+                            </div>
+                        </div>
+                        <div class="folder-content open">
+                            ${filesHtml || '<div class="metadata-empty">No files in this folder.</div>'}
+                        </div>
+                    </div>
+                `;
+            });
+            foldersHtml += `</div>`;
+        } else {
+            foldersHtml = '<div class="metadata-empty">No folders match the search term in this item.</div>';
+        }
+
+        // Build detail HTML based on document type
+        let detailHtml = `
+            <div class="detail-card">
+                <div class="detail-header">
+                    <h3 class="detail-title">${escapeHtml(title)}</h3>
+                </div>
+                <div class="detail-badges">
+                    <span class="status-badge ${statusClass}">${escapeHtml(status)}</span>
+                </div>
+        `;
+
+        if (docType === 'loan') {
+            // Loan document fields
+            const clientName = cardElement.dataset.clientName;
+            const customerId = cardElement.dataset.customerId;
+            const loanId = cardElement.dataset.loanId;
+            const period = cardElement.dataset.period;
+            const productType = cardElement.dataset.productType;
+            const disbursedDate = cardElement.dataset.disbursedDate;
+            const loanStatus = cardElement.dataset.loanStatus;
+            detailHtml += `
+                <div class="detail-grid">
+                    <div class="detail-field"><div class="detail-field-label">Loan ID</div><div class="detail-field-value">${escapeHtml(loanId)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Customer</div><div class="detail-field-value">${escapeHtml(clientName)} (ID: ${escapeHtml(customerId)})</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Product Type</div><div class="detail-field-value">${escapeHtml(productType)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Period</div><div class="detail-field-value">${escapeHtml(period)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Disbursement Date</div><div class="detail-field-value">${escapeHtml(disbursedDate)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Loan Status</div><div class="detail-field-value">${escapeHtml(loanStatus)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Collection</div><div class="detail-field-value">${escapeHtml(collection)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Created</div><div class="detail-field-value">${escapeHtml(created)}</div></div>
+                </div>
+            `;
+        } else {
+            // Non‑loan document (department/public)
+            detailHtml += `
+                <div class="detail-grid">
+                    <div class="detail-field"><div class="detail-field-label">Document Type</div><div class="detail-field-value">${docType === 'department' ? 'Department Document' : 'Public Document'}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Collection</div><div class="detail-field-value">${escapeHtml(collection)}</div></div>
+                    <div class="detail-field"><div class="detail-field-label">Created</div><div class="detail-field-value">${escapeHtml(created)}</div></div>
+                </div>
+                <div class="detail-description">
+                    <div class="detail-section-title">Description</div>
+                    <p>${escapeHtml(description)}</p>
+                </div>
+                <div class="detail-section-title">Tags</div>
+                <div class="tag-list">
+                    ${(cardElement.dataset.tags ? JSON.parse(cardElement.dataset.tags).map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('') : '<span class="tag-empty">No tags</span>')}
+                </div>
+            `;
+        }
+
+        detailHtml += `
+                <div class="detail-section-title"><i class="fas fa-folder"></i> Matching Folders</div>
+                ${foldersHtml}
+            </div>
+        `;
+
+        selectedContainer.innerHTML = detailHtml;
+        placeholderDiv.style.display = 'none';
+        selectedContainer.style.display = 'block';
+
+        selectedContainer.querySelectorAll('.preview-file').forEach(btn => {
+            btn.addEventListener('click', () => openPreview(btn.dataset.url, btn.dataset.name));
+        });
+    }
+
+    function selectLoan(loanId) {
+        const card = allCardsContainer.querySelector(`.loan-card[data-id="${loanId}"]`);
+        if (!card) return;
+        transformCardToDetail(card, loanId);
+        selectedLoanId = loanId;
+    }
+
+    document.querySelectorAll('.loan-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const loanId = item.dataset.id;
+            document.querySelectorAll('.loan-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            selectLoan(loanId);
+        });
+    });
+
+    // Year toggle logic
+    document.querySelectorAll('.year-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const year = btn.dataset.year;
+            const content = document.getElementById(`year-${year}`);
+            const visible = content.style.display === 'block';
+            content.style.display = visible ? 'none' : 'block';
+            const icon = btn.querySelector('.fa-chevron-right');
+            if (icon) icon.style.transform = visible ? 'rotate(0deg)' : 'rotate(90deg)';
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Access Requests{% endblock %}
+
+{% block content %}
+<div class="requests-container">
+    <div class="page-header">
+        <h1><i class="fas fa-clock"></i> My Access Requests</h1>
+        <p class="subtitle">Review the status of your requests for temporary access to documents</p>
+    </div>
+
+    {% if requests %}
+        <div class="requests-grid">
+            {% for req in requests %}
+                <div class="request-card">
+                    <div class="card-top">
+                        <div class="item-title">{{ req.archive_item.title }}</div>
+                        <span class="status-badge status-{{ req.status|lower }}">
+                            {{ req.get_status_display }}
+                        </span>
+                    </div>
+                    
+                    <div class="card-details">
+                        <div class="detail-row">
+                            <i class="fas fa-file-alt"></i>
+                            <span>
+                                {% if req.archive_item.customer_id %}
+                                    {{ req.archive_item.client_name }} (ID: {{ req.archive_item.customer_id }})
+                                {% else %}
+                                    {{ req.archive_item.get_document_type_display }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <i class="fas fa-comment"></i>
+                            <span>{{ req.reason|truncatechars:60 }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>{{ req.created_at_local|date:"Y-m-d H:i" }}</span>
+                        </div>
+                        {% if req.status == 'APPROVED' %}
+                            <div class="detail-row">
+                                <i class="fas fa-hourglass-half"></i>
+                                <span>
+                                    Until: {{ req.granted_access_until_local|date:"Y-m-d H:i" }}
+                                    {% if req.is_expired %}
+                                        <span class="expired-badge">Expired</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="detail-row">
+                                <i class="fas fa-user-check"></i>
+                                <span>by {{ req.approver.username }} on {{ req.approved_at_local|date:"Y-m-d H:i" }}</span>
+                            </div>
+                        {% elif req.status == 'DENIED' %}
+                            <div class="detail-row">
+                                <i class="fas fa-user-times"></i>
+                                <span>by {{ req.approver.username }} on {{ req.approved_at_local|date:"Y-m-d H:i" }}</span>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-actions">
+                        {% if req.status == 'PENDING' %}
+                            <a href="{% if req.archive_item.customer_id %}{% url 'archive:customer_detail' customer_id=req.archive_item.customer_id %}{% else %}{% url 'archive:document_detail' item_id=req.archive_item.id %}{% endif %}" 
+                               class="btn-sm btn-outline">
+                                <i class="fas fa-eye"></i> View Item
+                            </a>
+                            <span class="pending-note"><i class="fas fa-clock"></i> Awaiting approval</span>
+                        {% elif req.status == 'APPROVED' and not req.is_expired %}
+                            <a href="{% if req.archive_item.customer_id %}{% url 'archive:customer_detail' customer_id=req.archive_item.customer_id %}{% else %}{% url 'archive:document_detail' item_id=req.archive_item.id %}{% endif %}" 
+                               class="btn-sm btn-primary">
+                                <i class="fas fa-eye"></i> View Item
+                            </a>
+                        {% else %}
+                            <a href="{% url 'archive:request_document_access' item_id=req.archive_item.id %}" 
+                               class="btn-sm btn-primary">
+                                <i class="fas fa-redo-alt"></i> Request again
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-inbox fa-3x"></i>
+            <p>You haven't made any access requests yet.</p>
+            <a href="{% url 'archive:home' %}" class="btn-primary"><i class="fas fa-search"></i> Browse items</a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+
+    .requests-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.25rem 0;
+    }
+    .subtitle {
+        color: #64748b;
+        font-size: 0.85rem;
+        margin-top: -0.25rem;
+    }
+
+    /* Responsive grid for compact cards */
+    .requests-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 1rem;
+    }
+
+    /* Compact card design */
+    .request-card {
+        background: white;
+        border-radius: 0.75rem;
+        border: 1px solid #eef2ff;
+        padding: 0.8rem 1rem;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .request-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+        border-color: #e2e8f0;
+    }
+
+    /* Card top row: title + status */
+    .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .item-title {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #0f172a;
+        line-height: 1.3;
+        flex: 1;
+    }
+    .status-badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        white-space: nowrap;
+        background: #eef2ff;
+        color: #1e293b;
+    }
+    .status-pending { background: #fef9c3; color: #854d0e; }
+    .status-approved { background: #dcfce7; color: #166534; }
+    .status-denied { background: #fee2e2; color: #991b1b; }
+
+    /* Detail rows – compact */
+    .card-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+    .detail-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.7rem;
+        color: #334155;
+        line-height: 1.3;
+    }
+    .detail-row i {
+        width: 1.2rem;
+        font-size: 0.7rem;
+        color: #64748b;
+        text-align: center;
+    }
+    .detail-row span {
+        flex: 1;
+        word-break: break-word;
+    }
+    .expired-badge {
+        background: #dc2626;
+        color: white;
+        font-size: 0.6rem;
+        padding: 0.1rem 0.5rem;
+        border-radius: 30px;
+        margin-left: 0.4rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* Card actions – buttons */
+    .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 0.2rem;
+        border-top: 1px solid #eef2ff;
+        padding-top: 0.6rem;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.8rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        border: none;
+    }
+    .btn-primary:hover {
+        background: #334155;
+        transform: translateY(-1px);
+    }
+    .btn-outline {
+        background: #eef2ff;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+    }
+    .btn-outline:hover {
+        background: #e0e7ff;
+        transform: translateY(-1px);
+    }
+    .pending-note {
+        font-size: 0.65rem;
+        color: #64748b;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #f8fafc;
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: #f8fafc;
+        border-radius: 1rem;
+        color: #94a3b8;
+        border: 1px solid #eef2ff;
+    }
+    .empty-state i {
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+    .empty-state .btn-primary {
+        display: inline-flex;
+        margin-top: 1rem;
+        background: #1e293b;
+        padding: 0.5rem 1.2rem;
+        border-radius: 2rem;
+        color: white;
+        text-decoration: none;
+        font-size: 0.8rem;
+        gap: 0.5rem;
+    }
+    .empty-state .btn-primary:hover {
+        background: #334155;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .requests-container {
+            padding: 0.5rem;
+        }
+        .requests-grid {
+            grid-template-columns: 1fr;
+            gap: 0.8rem;
+        }
+        .request-card {
+            padding: 0.7rem;
+        }
+        .card-actions {
+            flex-wrap: wrap;
+            justify-content: stretch;
+        }
+        .btn-sm {
+            flex: 1;
+            justify-content: center;
+        }
+        .pending-note {
+            text-align: center;
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}

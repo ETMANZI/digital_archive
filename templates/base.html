@@ -1,0 +1,557 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Archive | {% block title %}Home{% endblock %}</title>
+  <!-- Google Fonts + Font Awesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f0f4fa;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 0.75rem;
+    }
+    .app-wrapper { display: flex; height: 100vh; width: 100%; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.2rem;
+      overflow-y: auto;
+    }
+    .logo-area h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #1E2A3E, #2C3E66);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+    .logo-area p {
+      font-size: 0.7rem;
+      color: #64748b;
+      margin-top: -5px;
+    }
+    .nav-menu {
+      flex: 1;
+      margin-top: 2rem;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0.8rem 1rem;
+      border-radius: 1rem;
+      color: #334155;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: 0.2s;
+    }
+    .nav-item.active, .nav-item:hover {
+      background: rgba(255,255,255,0.7);
+      color: #0f172a;
+      border-left: 3px solid #2c3e66;
+    }
+    .nav-divider {
+      height: 1px;
+      background: rgba(0,0,0,0.05);
+      margin: 10px 0;
+    }
+    .nav-section-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.7rem;
+      color: #64748b;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .badge-pending {
+      background: #ef4444;
+      color: white;
+      border-radius: 20px;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.6rem;
+      margin-left: auto;
+    }
+    .has-submenu {
+      position: relative;
+    }
+    .submenu {
+      margin-left: 1.5rem;
+      display: none;
+    }
+    .submenu .nav-item {
+      padding-left: 2rem;
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      font-size: 0.7rem;
+      color: #7e8b9f;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+
+    /* Main area */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .topbar {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(10px);
+      padding: 0.8rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .page-title { font-weight: 600; font-size: 1.3rem; }
+    .user-area {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .user-area a {
+      text-decoration: none;
+      font-size: 0.8rem;
+      color: #334155;
+      transition: 0.2s;
+    }
+    .user-area a:hover {
+      color: #0f172a;
+    }
+    .avatar {
+      width: 38px; height: 38px;
+      background: #e2e8f0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .welcome-text {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #1e293b;
+    }
+    .new-item-btn {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      padding: 0.4rem 1rem;
+      border-radius: 2rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .new-item-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+
+    /* Messages */
+    .messages {
+      margin-bottom: 1.5rem;
+    }
+    .alert {
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .alert-success {
+      background: #dcfce7;
+      color: #166534;
+      border-left: 3px solid #166534;
+    }
+    .alert-error {
+      background: #fee2e2;
+      color: #991b1b;
+      border-left: 3px solid #991b1b;
+    }
+    .alert-info {
+      background: #e0f2fe;
+      color: #0369a1;
+      border-left: 3px solid #0369a1;
+    }
+    .alert-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border-left: 3px solid #92400e;
+    }
+
+    /* Content area */
+    .content-wrapper {
+      padding: 1.8rem 2rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .modal-card {
+      background: white;
+      border-radius: 1.5rem;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #eef2ff;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .close-modal {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #94a3b8;
+      transition: color 0.2s;
+    }
+    .close-modal:hover {
+      color: #dc2626;
+    }
+    .modal-body {
+      padding: 1.5rem;
+      font-size: 0.85rem;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.8rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #eef2ff;
+    }
+    .btn-primary {
+      background: #1e293b;
+      color: white;
+      border: none;
+      padding: 0.4rem 1rem;
+      border-radius: 2rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover {
+      background: #334155;
+    }
+
+    @media (max-width: 780px) {
+      .sidebar { width: 80px; padding: 1rem 0.5rem; }
+      .nav-item span:not(i) { display: none; }
+      .content-wrapper { padding: 1rem; }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="app-wrapper">
+  <aside class="sidebar">
+    <div class="logo-area">
+      <h2><i class="fas fa-database"></i> Archive</h2>
+      <p>digital ecosystem</p>
+    </div>
+    <div class="nav-menu">
+      <!-- Main Navigation -->
+      <a href="{% url 'archive:home' %}" class="nav-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+        <i class="fas fa-home"></i><span> Home</span>
+      </a>
+      
+      {% if user.is_superuser or user.is_archive_manager or user.is_contributor %}
+      <a href="{% url 'archive:collections' %}" class="nav-item {% if request.resolver_match.url_name == 'collections' %}active{% endif %}">
+        <i class="fas fa-folder"></i><span> Collections</span>
+      </a>
+      {% endif %}
+      
+      {% if user.is_superuser or user.is_archive_manager %}
+      <a href="{% url 'archive:insights' %}" class="nav-item {% if request.resolver_match.url_name == 'insights' %}active{% endif %}">
+        <i class="fas fa-chart-line"></i><span> Insights</span>
+      </a>
+      
+      <a href="{% url 'archive:manage_users' %}" class="nav-item {% if request.resolver_match.url_name == 'manage_users' %}active{% endif %}">
+        <i class="fas fa-user-cog"></i><span> User Mgmt</span>
+      </a>
+      
+      <a href="{% url 'archive:audit_logs' %}" class="nav-item {% if request.resolver_match.url_name == 'audit_logs' %}active{% endif %}">
+        <i class="fas fa-history"></i><span> Audit Logs</span>
+      </a>
+      {% endif %}
+
+      {% if user.is_authenticated %}
+      <a href="{% url 'archive:my_access_requests' %}" class="nav-item {% if request.resolver_match.url_name == 'my_access_requests' %}active{% endif %}">
+        <i class="fas fa-clock"></i><span> My Access Requests</span>
+      </a>
+      
+      {% if user.is_superuser or user.is_archive_manager %}
+      <a href="{% url 'archive:pending_access_requests' %}" class="nav-item {% if request.resolver_match.url_name == 'pending_access_requests' %}active{% endif %}">
+        <i class="fas fa-tasks"></i><span> Pending Requests</span>
+      </a>
+      
+      <a href="{% url 'archive:folder_type_list' %}" class="nav-item {% if request.resolver_match.url_name == 'folder_type_list' %}active{% endif %}">
+        <i class="fas fa-tags"></i><span> Folder Types</span>
+      </a>
+
+      <a href="{% url 'archive:shared_folders_manage' %}" class="nav-item {% if request.resolver_match.url_name == 'shared_folders_manage' %}active{% endif %}">
+        <i class="fas fa-folder-plus"></i><span> Manage Shared Folders</span>
+      </a>
+      {% endif %}
+      
+      <a href="{% url 'archive:my_shared_folders' %}" class="nav-item {% if request.resolver_match.url_name == 'my_shared_folders' %}active{% endif %}">
+        <i class="fas fa-share-alt"></i><span> My Shared Folders</span>
+      </a>
+      {% if user.is_superuser %}
+      <a href="{% url 'archive:deleted_items' %}" class="nav-item {% if request.resolver_match.url_name == 'my_shared_folders' %}active{% endif %}">
+        <i class="fas fa-trash-restore"></i> <span>Recycle Bin</span>
+      </a>
+
+
+    <a href="{% url 'archive:pending_deletions' %}" class="nav-item {% if request.resolver_match.url_name == 'pending_deletions' %}active{% endif %}">
+      <i class="fas fa-clock"></i> <span>Pending Deletion Approval</span>
+    </a>
+
+
+      {% endif %}
+      {% endif %}
+<!-- 
+      <div class="nav-divider"></div>
+      <div class="nav-section-header">
+        <i class="fas fa-signature"></i> E-SIGNATURE
+      </div>
+      
+      <a href="{% url 'archive:signature_dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'signature_dashboard' %}active{% endif %}">
+        <i class="fas fa-tachometer-alt"></i><span> Dashboard</span>
+      </a>
+      
+      <a href="{% url 'archive:pending_signatures' %}" class="nav-item {% if request.resolver_match.url_name == 'pending_signatures' %}active{% endif %}">
+        <i class="fas fa-clock"></i><span> Pending Signatures</span>
+        {% if pending_signature_count > 0 %}
+        <span class="badge-pending">{{ pending_signature_count }}</span>
+        {% endif %}
+      </a>
+      
+      <a href="{% url 'archive:sent_envelopes' %}" class="nav-item {% if request.resolver_match.url_name == 'sent_envelopes' %}active{% endif %}">
+        <i class="fas fa-paper-plane"></i><span> Sent</span>
+      </a>
+      
+      <a href="{% url 'archive:completed_envelopes' %}" class="nav-item {% if request.resolver_match.url_name == 'completed_envelopes' %}active{% endif %}">
+        <i class="fas fa-check-circle"></i><span> Completed</span>
+      </a>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section-header">
+        <i class="fas fa-hand-holding-usd"></i> LOAN SIGNATURES
+      </div>
+      
+      <a href="{% url 'archive:loan_signature_requests' %}" class="nav-item {% if request.resolver_match.url_name == 'loan_signature_requests' %}active{% endif %}">
+        <i class="fas fa-file-signature"></i><span> Loan Documents</span>
+      </a>
+      
+      <a href="{% url 'archive:loan_signature_pending' %}" class="nav-item {% if request.resolver_match.url_name == 'loan_signature_pending' %}active{% endif %}">
+        <i class="fas fa-hourglass-half"></i><span> Pending Loan Signatures</span>
+      </a>
+      
+      <a href="{% url 'archive:loan_signature_history' %}" class="nav-item {% if request.resolver_match.url_name == 'loan_signature_history' %}active{% endif %}">
+        <i class="fas fa-history"></i><span> Loan Signature History</span>
+      </a>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section-header">
+        <i class="fas fa-signature"></i> Digital Lellter
+      </div>
+
+      <a href="{% url 'letters:create_letter' %}" class="nav-item {% if request.resolver_match.url_name == 'loan_signature_pending' %}active{% endif %}">
+        <i class="fas fa-envelope-open-text"></i><span> New Letter</span>
+      </a>
+      
+      <a href="{% url 'letters:my_letters' %}" class="nav-item {% if request.resolver_match.url_name == 'loan_signature_history' %}active{% endif %}">
+        <i class="fas fa-envelope-open-text"></i><span> My Letter</span>
+      </a> -->
+
+
+    </div>
+    
+    <div class="sidebar-footer">
+      <i class="fas fa-shield-alt"></i> v2.0 · secure db
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="topbar">
+      <div class="page-title"><i class="fas fa-archive"></i> Digital Archive</div>
+      <div class="user-area">
+        {% if user.is_authenticated %}
+          <span class="welcome-text">Hi, {{ user.username }}</span>
+          <a href="{% url 'archive:logout' %}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+          
+        {% else %}
+          <a href="{% url 'archive:login' %}"><i class="fas fa-sign-in-alt"></i> Login</a>
+        {% endif %}
+        <div class="avatar">{{ user.username|first|default:"U" }}</div>
+      </div>
+    </div>
+
+    <div class="content-wrapper">
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}
+      {% endblock %}
+    </div>
+  </div>
+</div>
+
+<!-- Session Timeout Modal -->
+<div id="sessionTimeoutModal" class="modal-overlay">
+  <div class="modal-card timeout-card">
+    <div class="modal-header">
+      <h3><i class="fas fa-clock"></i> Session Expiring Soon</h3>
+      <button class="close-modal" id="closeTimeoutModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Your session will expire due to inactivity in <strong id="countdownSeconds">15</strong> seconds.</p>
+      <p>Click "Stay Logged In" to continue working.</p>
+    </div>
+    <div class="modal-actions">
+      <button id="stayLoggedInBtn" class="btn-primary">Stay Logged In</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const TIMEOUT_WARNING_SECONDS = 15;
+  const TOTAL_TIMEOUT_SECONDS = {{ INACTIVITY_TIMEOUT_SECONDS|default:1800 }};
+  let warningModal = document.getElementById('sessionTimeoutModal');
+  let countdownElement = document.getElementById('countdownSeconds');
+  let inactivityTimer = null;
+  let countdownTimer = null;
+  let isModalShowing = false;
+
+  function startInactivityTimer() {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(showWarningModal, (TOTAL_TIMEOUT_SECONDS - TIMEOUT_WARNING_SECONDS) * 1000);
+  }
+
+  function showWarningModal() {
+    if (isModalShowing) return;
+    isModalShowing = true;
+    let secondsLeft = TIMEOUT_WARNING_SECONDS;
+    if (countdownElement) countdownElement.innerText = secondsLeft;
+    if (warningModal) warningModal.style.display = 'flex';
+
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (countdownElement) countdownElement.innerText = secondsLeft;
+      if (secondsLeft <= 0) {
+        clearInterval(countdownTimer);
+        window.location.href = "{% url 'archive:logout' %}";
+      }
+    }, 1000);
+  }
+
+  async function extendSession() {
+    try {
+      const csrfToken = getCookie('csrftoken');
+      const response = await fetch("{% url 'archive:extend_session' %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (data.success) {
+        if (countdownTimer) clearInterval(countdownTimer);
+        if (warningModal) warningModal.style.display = 'none';
+        isModalShowing = false;
+        startInactivityTimer();
+      } else {
+        window.location.href = "{% url 'archive:logout' %}";
+      }
+    } catch (err) {
+      console.error('Extend session error:', err);
+      window.location.href = "{% url 'archive:logout' %}";
+    }
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  const closeModalBtn = document.getElementById('closeTimeoutModalBtn');
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', () => {
+      if (warningModal) warningModal.style.display = 'none';
+    });
+  }
+
+  const stayBtn = document.getElementById('stayLoggedInBtn');
+  if (stayBtn) stayBtn.addEventListener('click', extendSession);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    startInactivityTimer();
+  });
+</script>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

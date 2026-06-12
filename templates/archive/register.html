@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Register – Digital Archive{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h2><i class="fas fa-user-plus"></i> Create Account</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Username *</label>
+                {{ form.username }}
+                {{ form.username.errors }}
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                {{ form.email }}
+                {{ form.email.errors }}
+            </div>
+            <div class="form-group">
+                <label>Department (optional)</label>
+                {{ form.department }}
+            </div>
+            <div class="form-group">
+                <label>Password *</label>
+                {{ form.password1 }}
+                {{ form.password1.errors }}
+            </div>
+            <div class="form-group">
+                <label>Confirm Password *</label>
+                {{ form.password2 }}
+                {{ form.password2.errors }}
+            </div>
+            <button type="submit" class="btn-primary">Register</button>
+        </form>
+        <p class="auth-link">Already have an account? <a href="{% url 'archive:login' %}">Login here</a></p>
+    </div>
+</div>
+
+<style>
+    /* same as before, no changes */
+    .auth-container { max-width: 500px; margin: 3rem auto; }
+    .auth-card { background: white; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .auth-card h2 { margin-bottom: 1.5rem; text-align: center; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    .form-group input { width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; }
+    .btn-primary { width: 100%; padding: 0.6rem; background: #1e293b; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; }
+    .auth-link { text-align: center; margin-top: 1rem; }
+</style>
+{% endblock %}

@@ -1,0 +1,1328 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ item.title }} | Document{% endblock %}
+
+{% block content %}
+<div class="doc-detail-container">
+    <!-- Header -->
+    <div class="doc-header">
+        <div class="header-left">
+            <h1><i class="fas fa-file-alt"></i> <span id="docTitleDisplay">{{ item.title }}</span></h1>
+            <span class="doc-type-badge">{{ item.get_document_type_display }}</span>
+            {% if can_modify %}
+                <!-- <button class="edit-all-btn" id="editAllBtn" title="Edit all document information"><i class="fas fa-pen"></i></button> -->
+                <button class="edit-all-btn" id="editAllBtn" style="background: none; border: none; color: #64748b; cursor: pointer; margin-left: 0.5rem;"><i class="fas fa-pen"></i></button>
+
+            {% endif %}
+        </div>
+        <a href="{% url 'archive:home' %}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    </div>
+
+    <!-- Document Information Card -->
+    <div class="info-card">
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-file-signature"></i> Document Type</div>
+                <div class="info-value">{{ item.get_document_type_display }}</div>
+            </div>
+            {% if item.document_type == 'loan' %}
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-user"></i> Client Name</div>
+                    <div class="info-value">{{ item.client_name|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-id-card"></i> Customer ID</div>
+                    <div class="info-value">{{ item.customer_id|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-hashtag"></i> Loan ID</div>
+                    <div class="info-value">{{ item.loan_id|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-calendar-week"></i> Period</div>
+                    <div class="info-value">{{ item.period|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-tag"></i> Product Type</div>
+                    <div class="info-value">{{ item.product_type|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-calendar-alt"></i> Disbursement Date</div>
+                    <div class="info-value">{{ item.date_of_disbursement|date:"Y-m-d"|default:"—" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label"><i class="fas fa-chart-line"></i> Loan Status</div>
+                    <div class="info-value">{{ item.get_loan_status_display|default:"—" }}</div>
+                </div>
+            {% endif %}
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-flag-checkered"></i> Status</div>
+                <div class="info-value">{{ item.status.name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-folder-tree"></i> Collection</div>
+                <div class="info-value">{{ item.collection.name|default:"—" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-calendar-day"></i> Year</div>
+                <div class="info-value" id="docYearDisplay">{{ item.date_of_disbursement|date:"Y"|default:item.created_at|date:"Y" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-clock"></i> Created</div>
+                <div class="info-value">{{ item.created_at|date:"Y-m-d H:i" }}</div>
+            </div>
+            <div class="info-item full-width">
+                <div class="info-label"><i class="fas fa-align-left"></i> Description</div>
+                <div class="info-value" id="docDescDisplay">{{ item.description|linebreaks|default:"No description" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tags Section -->
+    <div class="section-title">
+        <i class="fas fa-tags"></i> Tags
+        {% if can_modify %}
+            <button class="edit-tags-btn" id="editTagsBtn" style="background: none; border: none; color: #64748b; cursor: pointer; margin-left: 0.5rem;"><i class="fas fa-pen"></i></button>
+        {% endif %}
+    </div>
+    <div class="tag-list" id="tagList">
+        {% for tag in item.tags.all %}
+            <span class="tag-chip">#{{ tag.name }}</span>
+        {% empty %}
+            <span class="tag-empty">No tags</span>
+        {% endfor %}
+    </div>
+
+    <!-- Custom Metadata Section -->
+    <div class="section-title">
+        <i class="fas fa-tags"></i> Custom Metadata
+        {% if can_add_metadata %}
+            <button class="add-metadata-btn" id="addMetadataBtn" style="margin-left: 0.5rem;"><i class="fas fa-plus"></i> Add Metadata</button>
+        {% endif %}
+    </div>
+    <div id="metadata-list" class="metadata-grid">Loading...</div>
+
+    <!-- Folders Section -->
+    <div class="section-title"><i class="fas fa-folder"></i> Folders (Attachments)</div>
+    <div id="folders-container">Loading folders...</div>
+</div>
+
+<!-- ========== MODALS ========== -->
+
+<!-- Edit All Document Information Modal -->
+<div id="editAllModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Edit All Document Information</h3>
+            <button class="close-modal" data-modal="editAllModal">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh;">
+            <form id="editAllForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input type="text" id="edit_title" class="form-control" value="{{ item.title }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="edit_description" rows="3" class="form-control">{{ item.description|default:'' }}</textarea>
+                </div>
+                <div class="form-row" style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Year</label>
+                        <input type="number" id="edit_year" class="form-control" value="{{ item.date_of_disbursement|date:'Y'|default:item.created_at|date:'Y' }}">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Document Type</label>
+                        <select id="edit_doc_type" class="form-control">
+                            <option value="loan" {% if item.document_type == 'loan' %}selected{% endif %}>Loan Document</option>
+                            <option value="department" {% if item.document_type == 'department' %}selected{% endif %}>Department Document</option>
+                            <option value="public" {% if item.document_type == 'public' %}selected{% endif %}>Public Document</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="edit_status" class="form-control">
+                        {% for status in statuses %}
+                            <option value="{{ status.id }}" {% if item.status.id == status.id %}selected{% endif %}>{{ status.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Collection</label>
+                    <select id="edit_collection" class="form-control">
+                        {% for coll in collections %}
+                            <option value="{{ coll.id }}" {% if item.collection.id == coll.id %}selected{% endif %}>{{ coll.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Loan-specific fields (hidden by default) -->
+                <div id="loanFields" style="display: {% if item.document_type == 'loan' %}block{% else %}none{% endif %}; margin-top: 1rem;">
+                    <hr>
+                    <h4>Loan Information</h4>
+                    <div class="form-group">
+                        <label>Client Name</label>
+                        <input type="text" id="edit_client_name" class="form-control" value="{{ item.client_name|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Customer ID</label>
+                        <input type="text" id="edit_customer_id" class="form-control" value="{{ item.customer_id|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Loan ID</label>
+                        <input type="text" id="edit_loan_id" class="form-control" value="{{ item.loan_id|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Period</label>
+                        <input type="text" id="edit_period" class="form-control" value="{{ item.period|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Product Type</label>
+                        <input type="text" id="edit_product_type" class="form-control" value="{{ item.product_type|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Disbursement Date</label>
+                        <input type="date" id="edit_disbursement_date" class="form-control" value="{{ item.date_of_disbursement|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Loan Status</label>
+                        <select id="edit_loan_status" class="form-control">
+                            <option value="active" {% if item.loan_status == 'active' %}selected{% endif %}>Active</option>
+                            <option value="completed" {% if item.loan_status == 'completed' %}selected{% endif %}>Completed</option>
+                            <option value="defaulted" {% if item.loan_status == 'defaulted' %}selected{% endif %}>Defaulted</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="editAllModal">Cancel</button>
+            <button class="btn-primary" id="saveAllBtn">Save All Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Tags Modal -->
+<div id="editTagsModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-tags"></i> Edit Tags</h3>
+            <button class="close-modal" data-modal="editTagsModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Tags (comma‑separated)</label>
+                <input type="text" id="editTagsInput" class="form-control" placeholder="e.g., risk, market, compliance" value="{% for tag in item.tags.all %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                <small class="form-text">Separate tags with commas.</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="editTagsModal">Cancel</button>
+            <button class="btn-primary" id="saveTagsBtn">Save Tags</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Folder Modal -->
+<div id="addFolderModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-folder-plus"></i> Add New Folder</h3>
+            <button class="close-modal" id="closeAddFolderModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            {% if item.document_type == 'loan' %}
+                <div class="form-group">
+                    <label for="folderTypeSelect">Folder type</label>
+                    <select id="folderTypeSelect" class="form-control">
+                        <option value="">-- Select --</option>
+                    </select>
+                </div>
+            {% else %}
+                <div class="form-group">
+                    <label for="folderNameInput">Folder name</label>
+                    <input type="text" id="folderNameInput" class="form-control" placeholder="e.g., Invoices, Reports" autocomplete="off">
+                    <small class="form-text">Choose a descriptive name for your folder.</small>
+                </div>
+            {% endif %}
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancelAddFolderBtn">Cancel</button>
+            <button class="btn-primary" id="confirmAddFolderBtn">Create Folder</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="modal-overlay">
+    <div class="modal-card modal-large">
+        <div class="modal-header">
+            <h3><i class="fas fa-file-alt"></i> <span id="previewFileName"></span></h3>
+            <button class="close-modal" id="closePreviewModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <iframe id="previewFrame" src="about:blank" frameborder="0"></iframe>
+        </div>
+    </div>
+</div>
+
+<!-- Metadata Modal -->
+<div id="metadataModal" class="modal-overlay">
+    <div class="modal-card metadata-card">
+        <div class="modal-header">
+            <h3 id="metadataModalTitle"><i class="fas fa-tag"></i> Add Metadata</h3>
+            <button class="close-modal" id="closeMetadataModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editMetadataId">
+            <div class="form-group">
+                <label><i class="fas fa-heading"></i> Field Name</label>
+                <input type="text" id="metadataFieldName" class="form-control" placeholder="e.g., collateral_value, loan_amount">
+                <small class="form-text">Use lowercase and underscores for consistency.</small>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-value"></i> Field Value</label>
+                <input type="text" id="metadataFieldValue" class="form-control" placeholder="Value">
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-database"></i> Field Type</label>
+                <select id="metadataFieldType" class="form-control">
+                    <option value="string">String</option>
+                    <option value="integer">Integer</option>
+                    <option value="date">Date</option>
+                    <option value="json">JSON</option>
+                    <option value="encrypted">Encrypted</option>
+                </select>
+            </div>
+            <div class="form-group" id="currencyGroup" style="display: none;">
+                <label><i class="fas fa-coins"></i> Currency</label>
+                <select id="metadataCurrency" class="form-control">
+                    <option value="">— None —</option>
+                    <option value="RWF">RWF (RWF)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                </select>
+                <small class="form-text">If selected, the value will be stored as a currency amount.</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancelMetadataBtn">Cancel</button>
+            <button class="btn-primary" id="saveMetadataBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ========== MODERN REDESIGN ========== */
+    .doc-detail-container {
+        max-width: 1100px;
+        margin: 2rem auto;
+        padding: 1rem;
+    }
+    .doc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .doc-header h1 {
+        font-size: 1.6rem;
+        margin: 0;
+        color: #0f172a;
+    }
+    .doc-type-badge {
+        background: #eef2ff;
+        padding: 0.2rem 0.8rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    .edit-all-btn {
+        background: #1e293b;
+        color: white;
+        border: none;
+        border-radius: 2rem;
+        padding: 0.2rem 0.8rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .edit-all-btn:hover {
+        background: #334155;
+    }
+    .edit-tags-btn {
+        background: #f1f5f9;
+        border: none;
+        border-radius: 2rem;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .edit-tags-btn:hover {
+        background: #e2e8f0;
+    }
+    .back-link {
+        background: #f1f5f9;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: 0.2s;
+    }
+    .back-link:hover {
+        background: #e2e8f0;
+    }
+    .info-card {
+        background: white;
+        border-radius: 1.5rem;
+        border: 1px solid #eef2ff;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.2rem;
+    }
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+    .info-item.full-width {
+        grid-column: 1 / -1;
+    }
+    .info-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #475569;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .info-value {
+        font-size: 0.85rem;
+        color: #0f172a;
+        word-break: break-word;
+    }
+    .section-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin: 1.5rem 0 1rem 0;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-left: 3px solid #1e293b;
+        padding-left: 0.6rem;
+    }
+    .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .tag-chip {
+        background: #eef2ff;
+        padding: 0.2rem 0.7rem;
+        border-radius: 2rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #1e293b;
+    }
+    .metadata-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    .metadata-item {
+        background: #ffffff;
+        border-radius: 1rem;
+        padding: 0.7rem 1rem;
+        border: 1px solid #eef2ff;
+        transition: 0.1s;
+    }
+    .metadata-item:hover {
+        border-color: #cbd5e1;
+        background: #fefefe;
+    }
+    .metadata-key {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #334155;
+        display: block;
+        margin-bottom: 0.2rem;
+    }
+    .metadata-value {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #0f172a;
+        word-break: break-word;
+        display: block;
+        margin: 0.2rem 0;
+    }
+    .metadata-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        margin-top: 0.3rem;
+    }
+    .metadata-actions button {
+        background: transparent;
+        border: none;
+        font-size: 0.65rem;
+        color: #64748b;
+        cursor: pointer;
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.3rem;
+    }
+    .metadata-actions button:hover {
+        color: #2563eb;
+        background: #eef2ff;
+    }
+    .add-metadata-btn {
+        background: #eef2ff;
+        border: none;
+        border-radius: 2rem;
+        padding: 0.3rem 1rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .add-metadata-btn:hover {
+        background: #e0e7ff;
+    }
+    /* Folder section */
+    .folder-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+    .folder-item {
+        background: white;
+        border: 1px solid #eef2ff;
+        border-radius: 1rem;
+        overflow: hidden;
+        transition: 0.1s;
+    }
+    .folder-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.8rem 1.2rem;
+        background: #fafcff;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #1e293b;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .folder-header:hover {
+        background: #f8fafc;
+    }
+    .folder-name {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .folder-actions button {
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 0.8rem;
+        padding: 0.2rem;
+    }
+    .folder-actions button:hover {
+        color: #dc2626;
+    }
+    .folder-content {
+        padding: 1rem;
+        display: none;
+        background: white;
+    }
+    .folder-content.open {
+        display: block;
+    }
+    .file-item-folder {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.75rem;
+    }
+    .file-item-folder:last-child {
+        border-bottom: none;
+    }
+    .file-actions button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #3b82f6;
+        margin-left: 0.5rem;
+        font-size: 0.7rem;
+    }
+    .file-actions button:hover {
+        color: #1d4ed8;
+    }
+    .add-file-to-folder {
+        margin-top: 0.8rem;
+        text-align: right;
+    }
+    .add-file-to-folder button {
+        background: #eef2ff;
+        border: none;
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+    }
+    .new-folder-btn {
+        background: #eef2ff;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        margin-top: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .new-folder-btn:hover {
+        background: #e0e7ff;
+    }
+    .metadata-empty {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.75rem;
+        padding: 2rem;
+        background: #f8fafc;
+        border-radius: 1rem;
+    }
+
+    /* Modals */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1.5rem;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .modal-large {
+        width: 95%;
+        max-width: 1400px;
+        height: 85vh;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #eef2ff;
+        background: white;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+    }
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #eef2ff;
+        background: white;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #64748b;
+    }
+    .close-modal:hover {
+        color: #dc2626;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: 0.2s;
+    }
+    .btn-primary:hover {
+        background: #334155;
+    }
+    .btn-secondary {
+        background: #f1f5f9;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: 0.2s;
+    }
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+    .form-group {
+        margin-bottom: 1.2rem;
+    }
+    .form-group label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+        color: #1f2937;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.75rem;
+        font-size: 0.85rem;
+        transition: 0.2s;
+    }
+    .form-control:focus {
+        outline: none;
+        border-color: #1e293b;
+        box-shadow: 0 0 0 2px rgba(30,41,59,0.1);
+    }
+    .form-text {
+        font-size: 0.65rem;
+        color: #64748b;
+        margin-top: 0.2rem;
+        display: block;
+    }
+    /* Preview modal specific */
+    #previewModal .modal-large {
+        width: 98%;
+        max-width: 1600px;
+        height: 85vh;
+    }
+    #previewModal .modal-body {
+        padding: 0;
+    }
+    #previewModal iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+    @media (max-width: 768px) {
+        .doc-detail-container {
+            padding: 0.5rem;
+        }
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+        .modal-card {
+            width: 95%;
+        }
+        .form-row {
+            flex-direction: column;
+            gap: 0;
+        }
+    }
+</style>
+
+<script>
+    // GLOBALS
+    const itemId = {{ item.id }};
+    const isLoanDocument = {{ is_loan_document|yesno:"true,false" }};
+    const canModifyFolders = {{ can_manage_folders|yesno:"true,false" }};
+    const canAddMetadata = {{ can_add_metadata|yesno:"true,false" }};
+    let currentCanAddMetadata = canAddMetadata;
+    let folderTypes = [];
+    if (isLoanDocument) {
+        try {
+            folderTypes = JSON.parse('{{ folder_types|escapejs }}');
+        } catch(e) { console.error("Failed to parse folder types", e); }
+    }
+
+    // Helper functions
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+    function getCookie(name) {
+        let v = null;
+        if (document.cookie) {
+            document.cookie.split(';').forEach(c => {
+                c = c.trim();
+                if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+            });
+        }
+        return v;
+    }
+
+    // ========== FULL EDIT ==========
+    const editAllModal = document.getElementById('editAllModal');
+    const editAllBtn = document.getElementById('editAllBtn');
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    const docTypeSelect = document.getElementById('edit_doc_type');
+    const loanFieldsDiv = document.getElementById('loanFields');
+
+    if (docTypeSelect && loanFieldsDiv) {
+        docTypeSelect.addEventListener('change', () => {
+            loanFieldsDiv.style.display = docTypeSelect.value === 'loan' ? 'block' : 'none';
+        });
+    }
+
+    function openEditAllModal() {
+        const titleElem = document.getElementById('docTitleDisplay');
+        const yearElem = document.getElementById('docYearDisplay');
+        const descElem = document.getElementById('docDescDisplay');
+        
+        if (!titleElem || !yearElem || !descElem) {
+            console.error('Required display elements not found');
+            return;
+        }
+        
+        const titleInput = document.getElementById('edit_title');
+        const yearInput = document.getElementById('edit_year');
+        const descInput = document.getElementById('edit_description');
+        
+        if (titleInput) titleInput.value = titleElem.innerText;
+        if (yearInput) yearInput.value = yearElem.innerText;
+        if (descInput) descInput.value = descElem.innerText.replace(/<br>/g, '\n').replace(/<\/?p>/g, '');
+        
+        if (editAllModal) editAllModal.classList.add('active');
+    }
+
+    async function saveAllChanges() {
+        const title = document.getElementById('edit_title').value.trim();
+        if (!title) { alert('Title is required.'); return; }
+        const data = {
+            title: title,
+            description: document.getElementById('edit_description').value,
+            year: document.getElementById('edit_year').value,
+            document_type: docTypeSelect.value,
+            status_id: document.getElementById('edit_status').value,
+            collection_id: document.getElementById('edit_collection').value,
+            client_name: document.getElementById('edit_client_name')?.value || '',
+            customer_id: document.getElementById('edit_customer_id')?.value || '',
+            loan_id: document.getElementById('edit_loan_id')?.value || '',
+            period: document.getElementById('edit_period')?.value || '',
+            product_type: document.getElementById('edit_product_type')?.value || '',
+            disbursement_date: document.getElementById('edit_disbursement_date')?.value || '',
+            loan_status: document.getElementById('edit_loan_status')?.value || '',
+        };
+        try {
+            const res = await fetch(`/api/items/${itemId}/update_full/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Update failed');
+            }
+            window.location.reload();
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    if (editAllBtn) editAllBtn.addEventListener('click', openEditAllModal);
+    if (saveAllBtn) saveAllBtn.addEventListener('click', saveAllChanges);
+
+    // ========== TAGS EDIT ==========
+    const editTagsModal = document.getElementById('editTagsModal');
+    const editTagsBtn = document.getElementById('editTagsBtn');
+    const saveTagsBtn = document.getElementById('saveTagsBtn');
+    async function saveTags() {
+        const tagsStr = document.getElementById('editTagsInput').value;
+        const tags = tagsStr.split(',').map(t => t.trim()).filter(t => t);
+        try {
+            const res = await fetch(`/api/items/${itemId}/update_tags/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ tags })
+            });
+            if (!res.ok) throw new Error((await res.json()).error || 'Failed to update tags');
+            const tagContainer = document.getElementById('tagList');
+            if (tags.length) {
+                tagContainer.innerHTML = tags.map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('');
+            } else {
+                tagContainer.innerHTML = '<span class="tag-empty">No tags</span>';
+            }
+            editTagsModal.classList.remove('active');
+            alert('Tags updated.');
+        } catch (err) { alert('Error: ' + err.message); }
+    }
+    if (editTagsBtn) editTagsBtn.addEventListener('click', () => editTagsModal.classList.add('active'));
+    if (saveTagsBtn) saveTagsBtn.addEventListener('click', saveTags);
+
+    // ========== METADATA ==========
+    async function loadMetadata() {
+        const container = document.getElementById('metadata-list');
+        if (!container) return;
+        try {
+            const res = await fetch(`/api/items/${itemId}/metadata/`);
+            const data = await res.json();
+            if (data.metadata && data.metadata.length) {
+                container.innerHTML = data.metadata.map(m => {
+                    let displayValue = m.field_value;
+                    let rawValue = m.field_value;
+                    let currencySymbol = '';
+                    if (m.field_type === 'json' && m.field_value.startsWith('{')) {
+                        try {
+                            const parsed = JSON.parse(m.field_value);
+                            if (parsed.value !== undefined && parsed.currency) {
+                                const num = parseInt(parsed.value, 10);
+                                const formatted = num.toLocaleString();
+                                const symbols = {'USD':'$','EUR':'€','GBP':'£','RWF':'RWF'};
+                                currencySymbol = symbols[parsed.currency] || parsed.currency;
+                                displayValue = `${currencySymbol} ${formatted}`;
+                                rawValue = parsed.value.toString();
+                            }
+                        } catch(e) {}
+                    } else if (m.field_type === 'integer' && !isNaN(parseFloat(m.field_value))) {
+                        displayValue = parseInt(m.field_value, 10).toLocaleString();
+                    }
+                    const actions = currentCanAddMetadata ? `
+                        <div class="metadata-actions">
+                            <button class="edit-metadata-btn" data-id="${m.id}" data-name="${escapeHtml(m.field_name)}" data-value="${escapeHtml(rawValue)}" data-type="${m.field_type}" data-currency="${currencySymbol}"><i class="fas fa-edit"></i> Edit</button>
+                            <button class="delete-metadata-btn" data-id="${m.id}"><i class="fas fa-trash-alt"></i> Delete</button>
+                        </div>
+                    ` : '';
+                    return `
+                        <div class="metadata-item" data-meta-id="${m.id}">
+                            <span class="metadata-key">${escapeHtml(m.field_name)}</span>
+                            <span class="metadata-value">${escapeHtml(displayValue)}</span>
+                            ${actions}
+                        </div>`;
+                }).join('');
+                attachMetadataEvents();
+            } else {
+                container.innerHTML = '<div class="metadata-empty">No custom metadata added yet.</div>';
+            }
+        } catch (err) {
+            console.error('Metadata fetch error:', err);
+            container.innerHTML = '<div class="metadata-empty">Error loading metadata.</div>';
+        }
+    }
+
+    function attachMetadataEvents() {
+        document.querySelectorAll('.edit-metadata-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                const name = btn.dataset.name;
+                const value = btn.dataset.value;
+                const type = btn.dataset.type;
+                const currency = btn.dataset.currency || '';
+                openMetadataModal(id, name, value, type, currency);
+            });
+        });
+        document.querySelectorAll('.delete-metadata-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const metadataId = btn.dataset.id;
+                if (!confirm('Delete this metadata field?')) return;
+                try {
+                    const res = await fetch(`/api/items/${itemId}/metadata/${metadataId}/delete/`, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                    });
+                    if (!res.ok) throw new Error('Delete failed');
+                    await loadMetadata();
+                    alert('Metadata deleted');
+                } catch (err) { alert('Error: ' + err.message); }
+            });
+        });
+    }
+
+    const metadataModal = document.getElementById('metadataModal');
+    const closeMetadataBtn = document.getElementById('closeMetadataModalBtn');
+    const cancelMetadataBtn = document.getElementById('cancelMetadataBtn');
+    const saveMetadataBtn = document.getElementById('saveMetadataBtn');
+    const typeSelect = document.getElementById('metadataFieldType');
+    const currencyGroup = document.getElementById('currencyGroup');
+    if (typeSelect && currencyGroup) {
+        typeSelect.addEventListener('change', () => {
+            currencyGroup.style.display = typeSelect.value === 'integer' ? 'block' : 'none';
+        });
+    }
+
+    function openMetadataModal(metadataId = null, fieldName = '', fieldValue = '', fieldType = 'string', existingCurrency = '') {
+        document.getElementById('metadataModalTitle').innerText = metadataId ? 'Edit Metadata' : 'Add Metadata';
+        document.getElementById('editMetadataId').value = metadataId || '';
+        document.getElementById('metadataFieldName').value = fieldName;
+        document.getElementById('metadataFieldValue').value = fieldValue;
+        document.getElementById('metadataFieldType').value = fieldType;
+        const currencySelect = document.getElementById('metadataCurrency');
+        if (currencySelect) {
+            const symbolToCode = {'$':'USD','€':'EUR','£':'GBP','RWF':'RWF'};
+            currencySelect.value = symbolToCode[existingCurrency] || '';
+        }
+        if (typeSelect) typeSelect.dispatchEvent(new Event('change'));
+        metadataModal.classList.add('active');
+    }
+
+    async function saveMetadata() {
+        const id = document.getElementById('editMetadataId').value;
+        let fieldName = document.getElementById('metadataFieldName').value.trim();
+        let fieldValue = document.getElementById('metadataFieldValue').value.trim();
+        let fieldType = document.getElementById('metadataFieldType').value;
+        const currency = document.getElementById('metadataCurrency').value;
+        if (!fieldName || fieldValue === '') { alert('Field name and value are required'); return; }
+        if (fieldType === 'integer' && currency) {
+            fieldType = 'json';
+            const numValue = parseInt(fieldValue, 10);
+            if (isNaN(numValue)) { alert('Value must be integer when using currency'); return; }
+            fieldValue = JSON.stringify({ value: numValue, currency: currency });
+        } else if (fieldType === 'json') {
+            try { JSON.parse(fieldValue); } catch(e) { alert('Invalid JSON'); return; }
+        }
+        try {
+            const res = await fetch(`/api/items/${itemId}/metadata/upsert/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ field_name: fieldName, field_value: fieldValue, field_type: fieldType })
+            });
+            if (!res.ok) throw new Error((await res.json()).error || 'Save failed');
+            metadataModal.classList.remove('active');
+            await loadMetadata();
+            alert('Metadata saved!');
+        } catch (err) { alert('Error: ' + err.message); }
+    }
+    if (closeMetadataBtn) closeMetadataBtn.addEventListener('click', () => metadataModal.classList.remove('active'));
+    if (cancelMetadataBtn) cancelMetadataBtn.addEventListener('click', () => metadataModal.classList.remove('active'));
+    metadataModal.addEventListener('click', (e) => { if (e.target === metadataModal) metadataModal.classList.remove('active'); });
+    if (saveMetadataBtn) saveMetadataBtn.addEventListener('click', saveMetadata);
+
+    // ========== FOLDERS ==========
+    async function loadFolders() {
+        if (isLoanDocument) {
+            const res = await fetch(`/api/items/${itemId}/folders/`);
+            const data = await res.json();
+            return data.folders;
+        } else {
+            const res = await fetch(`/api/document-folders/${itemId}/`);
+            const data = await res.json();
+            return data.folders.map(f => ({
+                id: f.id,
+                name: f.name,
+                order: 999,
+                files: f.files,
+            }));
+        }
+    }
+
+    async function deleteFolder(folderId) {
+        const csrftoken = getCookie('csrftoken');
+        const url = isLoanDocument ? `/api/folders/${folderId}/delete/` : `/api/document-folders/${folderId}/delete/`;
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error('Delete failed');
+    }
+
+    async function addFileToFolder(folderId, file) {
+        const csrftoken = getCookie('csrftoken');
+        const formData = new FormData();
+        formData.append('file', file);
+        const url = isLoanDocument ? `/api/folders/${folderId}/add-file/` : `/api/document-folders/${folderId}/add-file/`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin',
+            body: formData,
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        return await res.json();
+    }
+
+    async function deleteFile(fileId) {
+        const csrftoken = getCookie('csrftoken');
+        const url = isLoanDocument ? `/api/folder-files/${fileId}/delete/` : `/api/document-files/${fileId}/delete/`;
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error('File delete failed');
+    }
+
+    function getDownloadUrl(assetUuid) {
+        return `/download/${assetUuid}/`;
+    }
+
+    async function renderFoldersSection() {
+        const container = document.getElementById('folders-container');
+        try {
+            const folders = await loadFolders();
+            if (!folders.length) {
+                let btnHtml = '';
+                if (canModifyFolders) {
+                    btnHtml = `<button class="new-folder-btn"><i class="fas fa-folder-plus"></i> New Folder</button>`;
+                }
+                container.innerHTML = `<div class="metadata-empty">No folders yet. Click "New Folder" to create one.</div>${btnHtml}`;
+                const newBtn = container.querySelector('.new-folder-btn');
+                if (newBtn) newBtn.addEventListener('click', () => openAddFolderModal());
+                return;
+            }
+            let html = `<div class="folder-container">`;
+            folders.forEach(f => {
+                const folderNum = f.order && f.order !== 999 ? f.order : '';
+                const displayName = folderNum ? `${folderNum}. ${escapeHtml(f.name)}` : escapeHtml(f.name);
+                const filesHtml = f.files.map(file => `
+                    <div class="file-item-folder" data-file-id="${file.asset_uuid}">
+                        <span>
+                            <i class="fas fa-file-alt"></i>
+                            <a href="${getDownloadUrl(file.asset_uuid)}" class="file-download" target="_blank">${escapeHtml(file.file_name)}</a>
+                            (${(file.file_size/1024).toFixed(1)} KB)
+                        </span>
+                        <div class="file-actions">
+                            <button class="preview-file" data-url="${getDownloadUrl(file.asset_uuid)}" data-name="${escapeHtml(file.file_name)}"><i class="fas fa-eye"></i></button>
+                            ${canModifyFolders ? `<button class="delete-file" data-file-id="${file.asset_uuid}"><i class="fas fa-trash-alt"></i></button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+                html += `
+                    <div class="folder-item" data-folder-id="${f.id}">
+                        <div class="folder-header">
+                            <div class="folder-name">
+                                <i class="fas fa-folder"></i> ${displayName}
+                            </div>
+                            ${canModifyFolders ? `<div class="folder-actions"><button class="delete-folder" title="Delete folder"><i class="fas fa-trash-alt"></i></button></div>` : ''}
+                        </div>
+                        <div class="folder-content">
+                            ${filesHtml || '<div class="metadata-empty">No files in this folder.</div>'}
+                            ${canModifyFolders ? `
+                            <div class="add-file-to-folder">
+                                <button class="add-file-btn"><i class="fas fa-plus"></i> Add file</button>
+                                <input type="file" class="hidden-file-input" style="display:none" accept=".pdf,.docx,.jpg,.png">
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            if (canModifyFolders) {
+                html += `<button class="new-folder-btn"><i class="fas fa-folder-plus"></i> New Folder</button>`;
+            }
+            container.innerHTML = html;
+
+            container.querySelectorAll('.folder-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    if (e.target.closest('.folder-actions')) return;
+                    const content = header.parentElement.querySelector('.folder-content');
+                    content.classList.toggle('open');
+                });
+            });
+            if (canModifyFolders) {
+                container.querySelectorAll('.delete-folder').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const folderId = btn.closest('.folder-item').dataset.folderId;
+                        if (confirm('Delete this folder and all its files?')) {
+                            await deleteFolder(folderId);
+                            await renderFoldersSection();
+                        }
+                    });
+                });
+                container.querySelectorAll('.add-file-btn').forEach(btn => {
+                    const fileInput = btn.parentElement.querySelector('.hidden-file-input');
+                    btn.addEventListener('click', () => fileInput.click());
+                    fileInput.addEventListener('change', async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const folderId = btn.closest('.folder-item').dataset.folderId;
+                        try {
+                            await addFileToFolder(folderId, file);
+                            await renderFoldersSection();
+                        } catch (err) {
+                            alert('Upload error: ' + err.message);
+                        }
+                        fileInput.value = '';
+                    });
+                });
+                container.querySelectorAll('.delete-file').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const fileId = btn.dataset.fileId;
+                        if (confirm('Delete this file?')) {
+                            await deleteFile(fileId);
+                            await renderFoldersSection();
+                        }
+                    });
+                });
+                const newFolderBtn = container.querySelector('.new-folder-btn');
+                if (newFolderBtn) {
+                    newFolderBtn.addEventListener('click', () => openAddFolderModal());
+                }
+            }
+            container.querySelectorAll('.preview-file').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    openPreview(btn.dataset.url, btn.dataset.name);
+                });
+            });
+        } catch (err) {
+            console.error(err);
+            container.innerHTML = '<div class="metadata-empty">Error loading folders.</div>';
+        }
+    }
+
+    // Add folder modal handling
+    const addFolderModal = document.getElementById('addFolderModal');
+    const folderTypeSelect = document.getElementById('folderTypeSelect');
+    const folderNameInput = document.getElementById('folderNameInput');
+
+    function openAddFolderModal() {
+        if (isLoanDocument) {
+            if (!folderTypes.length) {
+                alert('No folder types defined. Please ask an administrator to create folder types first.');
+                return;
+            }
+            fetch(`/api/items/${itemId}/folders/`)
+                .then(res => res.json())
+                .then(data => {
+                    const existingTypeIds = data.folders.map(f => f.folder_type_id);
+                    folderTypeSelect.innerHTML = '<option value="">-- Select --</option>';
+                    folderTypes.forEach(ft => {
+                        if (!existingTypeIds.includes(ft.id)) {
+                            folderTypeSelect.innerHTML += `<option value="${ft.id}">${ft.order}. ${escapeHtml(ft.name)}</option>`;
+                        }
+                    });
+                    addFolderModal.classList.add('active');
+                });
+        } else {
+            if (folderNameInput) folderNameInput.value = '';
+            addFolderModal.classList.add('active');
+        }
+    }
+
+    document.getElementById('closeAddFolderModalBtn')?.addEventListener('click', () => addFolderModal.classList.remove('active'));
+    document.getElementById('cancelAddFolderBtn')?.addEventListener('click', () => addFolderModal.classList.remove('active'));
+    document.getElementById('confirmAddFolderBtn')?.addEventListener('click', async () => {
+        const csrftoken = getCookie('csrftoken');
+        let body;
+        if (isLoanDocument) {
+            const folderTypeId = folderTypeSelect.value;
+            if (!folderTypeId) return;
+            body = `folder_type_id=${folderTypeId}`;
+        } else {
+            const name = folderNameInput.value.trim();
+            if (!name) { alert('Please enter a folder name.'); return; }
+            body = `name=${encodeURIComponent(name)}`;
+        }
+        const url = isLoanDocument ? `/api/items/${itemId}/folders/` : `/api/document-folders/${itemId}/`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: body
+        });
+        if (res.ok) {
+            addFolderModal.classList.remove('active');
+            await renderFoldersSection();
+        } else {
+            const error = await res.json();
+            alert(error.error || 'Failed to create folder');
+        }
+    });
+
+    // Preview modal
+    const previewModal = document.getElementById('previewModal');
+    const previewIframe = document.getElementById('previewFrame');
+    const previewFileName = document.getElementById('previewFileName');
+    const closePreviewBtn = document.getElementById('closePreviewModalBtn');
+    function openPreview(url, name) {
+        previewFileName.innerText = name;
+        let finalUrl = url;
+        if (name && name.toLowerCase().endsWith('.pdf')) {
+            finalUrl = url.split('#')[0] + '#toolbar=0&navpanes=0&scrollbar=0';
+        }
+        previewIframe.src = finalUrl;
+        previewModal.classList.add('active');
+    }
+    function closePreviewModal() {
+        previewModal.classList.remove('active');
+        previewIframe.src = 'about:blank';
+    }
+    closePreviewBtn?.addEventListener('click', closePreviewModal);
+    previewModal?.addEventListener('click', (e) => { if (e.target === previewModal) closePreviewModal(); });
+
+    // Universal modal close for data-modal attribute
+    document.querySelectorAll('[data-modal]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modalId = btn.getAttribute('data-modal');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('active');
+        });
+    });
+
+    // Initial load
+    loadMetadata();
+    renderFoldersSection();
+    if (canAddMetadata) {
+        document.getElementById('addMetadataBtn')?.addEventListener('click', () => openMetadataModal());
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+<!-- templates/archive/upload_modal.html -->
+<div x-data="uploader()" x-init="initDropzone">
+    <form hx-post="{% url 'archive:upload_item' %}" hx-encoding="multipart/form-data" hx-target="#upload-result" hx-indicator="#upload-progress">
+        {% csrf_token %}
+        <div class="mb-4">
+            <label class="block font-medium">Title</label>
+            <input type="text" name="title" required class="w-full border rounded p-2">
+        </div>
+        <div class="mb-4">
+            <label class="block font-medium">Description</label>
+            <textarea name="description" rows="3" class="w-full border rounded p-2"></textarea>
+        </div>
+        <div class="mb-4">
+            <label class="block font-medium">Collection</label>
+            <select name="collection" class="w-full border rounded p-2">
+                {% for col in collections %}<option value="{{ col.id }}">{{ col.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <!-- File dropzone -->
+        <div class="border-2 border-dashed rounded p-6 text-center cursor-pointer" x-on:dragover.prevent x-on:drop.prevent="handleDrop($event)">
+            <p>Drag & drop files here or click to select</p>
+            <input type="file" name="files" multiple class="hidden" x-ref="fileInput" @change="handleFiles">
+        </div>
+        <!-- Upload progress -->
+        <div id="upload-progress" class="htmx-indicator mt-2">
+            <div class="bg-gray-200 rounded-full h-2.5">
+                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%" x-bind:style="'width: ' + progress + '%'"></div>
+            </div>
+            <span x-text="progress + '%'"></span>
+        </div>
+        <div id="upload-result" class="mt-4"></div>
+        <button type="submit" class="mt-4 w-full bg-green-600 text-white py-2 rounded">Upload</button>
+    </form>
+</div>
+
+<script>
+    function uploader() {
+        return {
+            progress: 0,
+            initDropzone() {
+                let dropzone = this.$el.querySelector('.border-dashed');
+                dropzone.addEventListener('click', () => this.$refs.fileInput.click());
+            },
+            handleDrop(event) {
+                let files = event.dataTransfer.files;
+                this.$refs.fileInput.files = files;
+                this.updateFileList(files);
+            },
+            handleFiles(event) {
+                this.updateFileList(event.target.files);
+            },
+            updateFileList(files) {
+                // you can show list of selected files here
+                console.log(files);
+            }
+        }
+    }
+    // For HTMX progress: listen to htmx:progress event
+    document.body.addEventListener('htmx:progress', function(evt) {
+        if (evt.detail.pathInfo.requestPath === '/archive/upload/') {
+            let progress = evt.detail.loaded / evt.detail.total * 100;
+            let uploader = document.querySelector('[x-data="uploader()"]').__x.$data;
+            if (uploader) uploader.progress = Math.round(progress);
+        }
+    });
+</script>
+
+
+
+
+
+                 <ul class="file-list">
+                                                {% for file in files %}
+                                                    <li>
+                                                        <i class="fas fa-file-{{ file.mime_type|slice:":5"|default:"alt" }}"></i>
+                                                        <a href="{% url 'archive:download_file' asset_uuid=file.asset_uuid %}" class="file-link" target="_blank">
+                                                            {{ file.file_name }}
+                                                        </a>
+                                                        <span class="file-size">({{ file.file_size|filesizeformat }})</span>
+                                                        <button class="preview-btn"
+                                                                data-file-url="{% url 'archive:download_file' asset_uuid=file.asset_uuid %}"
+                                                                data-file-name="{{ file.file_name }}">
+                                                            <i class="fas fa-eye"></i> Preview
+                                                        </button>
+                                                    </li>
+                                                {% endfor %}
+                                            </ul>

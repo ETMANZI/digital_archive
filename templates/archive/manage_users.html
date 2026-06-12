@@ -1,0 +1,962 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manage Users – Digital Archive{% endblock %}
+
+{% block content %}
+<div class="manage-users-container">
+    <div class="page-header">
+        <h1><i class="fas fa-users-cog"></i> User Management</h1>
+        <a href="{% url 'archive:admin_create_user' %}" class="btn-primary">
+            <i class="fas fa-user-plus"></i> Add New User
+        </a>
+    </div>
+
+    <!-- Search bar -->
+    <div class="search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="userSearchInput" placeholder="Search by username, email or department..." autocomplete="off">
+    </div>
+
+    {% if users %}
+        <div class="users-list" id="usersList">
+            {% for user in users %}
+                <div class="user-item {% if not user.is_active %}inactive-user{% endif %}"
+                     data-username="{{ user.username|lower }}"
+                     data-email="{{ user.email|lower }}"
+                     data-department="{{ user.department|default:''|lower }}">
+                    <div class="user-summary">
+                        <div class="user-avatar">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <div class="user-core">
+                            <div class="user-name">
+                                {{ user.get_full_name|default:user.username }}
+                                <span class="username-meta">({{ user.username }})</span>
+                                {% if user.is_superuser %}
+                                    <span class="superuser-badge">Superuser</span>
+                                {% endif %}
+                                {% if not user.is_active %}
+                                    <span class="inactive-badge">Inactive</span>
+                                {% endif %}
+                                {% if user.has_active_session %}
+                                    <span class="online-badge"><i class="fas fa-circle"></i> Online</span>
+                                {% endif %}
+                            </div>
+                            <div class="user-meta">
+                                <span><i class="fas fa-envelope"></i> {{ user.email }}</span>
+                                <span><i class="fas fa-building"></i> {{ user.department|default:"—" }}</span>
+                            </div>
+                            <div class="user-dates">
+                                <span><i class="fas fa-calendar-plus"></i> Joined: {{ user.date_joined|date:"Y-m-d" }}</span>
+                                <span><i class="fas fa-calendar-check"></i> Last login: {{ user.last_login|date:"Y-m-d H:i"|default:"Never" }}</span>
+                            </div>
+                        </div>
+                        <div class="user-roles-badge">
+                            {% for group in user.groups.all %}
+                                <span class="role-pill">{{ group.name }}</span>
+                            {% empty %}
+                                <span class="role-pill muted">No roles</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="user-role-form">
+                        <form method="post" action="{% url 'archive:assign_role' user.id %}" class="role-assign-form">
+                            {% csrf_token %}
+                            <div class="role-checkboxes">
+                                {% for group in groups %}
+                                    <label class="role-option">
+                                        <input type="checkbox" name="groups" value="{{ group.id }}"
+                                               {% if group in user.groups.all %}checked{% endif %}>
+                                        <span>{{ group.name }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                            <button type="submit" class="btn-update">Update roles</button>
+                        </form>
+                        <div class="user-actions">
+                            <!-- Edit User button (opens modal) -->
+                            <button type="button" class="action-btn edit-user"
+                                    data-user-id="{{ user.id }}"
+                                    data-first-name="{{ user.first_name }}"
+                                    data-last-name="{{ user.last_name }}"
+                                    data-email="{{ user.email }}"
+                                    data-department="{{ user.department|default:'' }}">
+                                <i class="fas fa-edit"></i> Edit User
+                            </button>
+
+                            <!-- Activate/Deactivate -->
+                            <form method="post" action="{% url 'archive:toggle_user_active' user.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="action-btn {% if user.is_active %}deactivate{% else %}activate{% endif %}">
+                                    {% if user.is_active %}
+                                        <i class="fas fa-ban"></i> Deactivate
+                                    {% else %}
+                                        <i class="fas fa-check-circle"></i> Activate
+                                    {% endif %}
+                                </button>
+                            </form>
+
+                            <!-- Reset Password (modal) -->
+                            <button type="button" class="action-btn reset" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                                <i class="fas fa-key"></i> Reset Password
+                            </button>
+
+                            <!-- Force Logout (only if user has active session and not current admin) -->
+                            {% if user.has_active_session and user.id != request.user.id %}
+                                <form method="post" action="{% url 'archive:force_logout_user' user.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="action-btn force-logout"
+                                            onclick="return confirm('Force logout {{ user.username }} from all devices?')">
+                                        <i class="fas fa-sign-out-alt"></i> Force Logout
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if users.has_other_pages %}
+            <div class="pagination" id="paginationContainer">
+                {% if users.has_previous %}
+                    <a href="?page={{ users.previous_page_number }}" class="page-link"><i class="fas fa-chevron-left"></i> Previous</a>
+                {% endif %}
+                <span class="current-page">Page {{ users.number }} of {{ users.paginator.num_pages }}</span>
+                {% if users.has_next %}
+                    <a href="?page={{ users.next_page_number }}" class="page-link">Next <i class="fas fa-chevron-right"></i></a>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <!-- Empty search result message -->
+        <div id="noSearchResults" class="no-results" style="display: none;">
+            <i class="fas fa-user-slash"></i>
+            <p>No users match your search.</p>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-user-slash fa-3x"></i>
+            <p>No users found. Create your first user.</p>
+            <a href="{% url 'archive:admin_create_user' %}" class="btn-primary">Add New User</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-edit"></i> Edit User</h3>
+            <button class="close-modal" id="closeEditUserModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="editUserForm">
+                {% csrf_token %}
+                <input type="hidden" id="editUserId">
+                <div class="form-group">
+                    <label>First name</label>
+                    <input type="text" id="editFirstName" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Last name</label>
+                    <input type="text" id="editLastName" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="editEmail" class="form-control" required>
+                </div>
+                <!-- <div class="form-group">
+                    <label>Department</label>
+                    <input type="text" id="editDepartment" class="form-control">
+                </div> -->
+<div class="form-group">
+    <label>Department</label>
+    <select id="editDepartment" class="form-control">
+        <option value="">Select department</option>
+        <option value="HR">Human Resources</option>
+        <option value="IT">Information Technology</option>
+        <option value="FINANCE">Finance</option>
+        <option value="AUDIT">Audit</option>
+        <option value="OPERATIONS">Operations</option>
+        <option value="LEGAL">Legal</option>
+        <option value="RISK">Risk Management</option>
+        <option value="CREDIT">Credit Management</option>
+        <option value="COMPLIANCE">Compliance</option>
+        <option value="INTERNAL CONTROL">Internal Control</option>
+
+    </select>
+</div>
+                <div id="editUserError" class="error-messages" style="display: none; color: #dc2626; font-size: 0.7rem;"></div>
+                <div class="modal-actions">
+                    <button type="button" id="cancelEditUserBtn" class="modal-cancel">Cancel</button>
+                    <button type="submit" class="btn-primary">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Password Reset Modal -->
+<div id="resetPasswordModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-key"></i> Reset Password</h3>
+            <button class="close-modal" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="resetUserInfo"></p>
+            <form id="resetPasswordForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="new_password1">New password</label>
+                    <input type="password" id="new_password1" name="new_password1" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password2">Confirm password</label>
+                    <input type="password" id="new_password2" name="new_password2" class="form-control" required>
+                </div>
+                <div id="resetErrorMessages" class="error-messages" style="display: none; color: #dc2626; font-size: 0.7rem;"></div>
+                <div class="modal-actions">
+                    <button type="button" id="cancelResetBtn" class="modal-cancel">Cancel</button>
+                    <button type="submit" class="btn-primary">Set new password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Additional styles for the edit modal and username meta */
+    .username-meta {
+        font-size: 0.7rem;
+        color: #64748b;
+        font-weight: normal;
+    }
+    .online-badge {
+        background: #dcfce7;
+        color: #166534;
+        font-size: 0.6rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 30px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+    }
+    .online-badge i {
+        font-size: 0.4rem;
+    }
+    .action-btn.force-logout {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #fde68a;
+    }
+    .action-btn.force-logout:hover {
+        background: #fde68a;
+    }
+    .action-btn.edit-user {
+        background: #e0f2fe;
+        color: #0369a1;
+        border-color: #bae6fd;
+    }
+    .action-btn.edit-user:hover {
+        background: #bae6fd;
+    }
+.online-badge {
+    background: #dcfce7;
+    color: #166534;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 30px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.online-badge i {
+    font-size: 0.4rem;
+}
+.action-btn.force-logout {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+}
+.action-btn.force-logout:hover {
+    background: #fde68a;
+}
+   .online-badge {
+        background: #dcfce7;
+        color: #166534;
+        font-size: 0.6rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 30px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+    }
+    .online-badge i {
+        font-size: 0.4rem;
+    }
+    .action-btn.force-logout {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #fde68a;
+    }
+    .action-btn.force-logout:hover {
+        background: #fde68a;
+    }
+    /* existing styles plus modal additions */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(3px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 450px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #64748b;
+    }
+    .modal-body {
+        padding: 1.5rem;
+    }
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-group label {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        color: #1e293b;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e2e8f0;
+        font-size: 0.8rem;
+    }
+    .error-messages {
+        margin: 0.5rem 0;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        margin-top: 1.5rem;
+    }
+    .modal-cancel {
+        background: #f1f5f9;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+    }
+
+
+
+
+
+    .manage-users-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .page-header h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        border: none;
+        padding: 0.5rem 1.2rem;
+        border-radius: 2rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    .btn-primary:hover {
+        background: #334155;
+        transform: translateY(-1px);
+    }
+    .users-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .user-item {
+        background: white;
+        border: 1px solid #eef2ff;
+        border-radius: 1rem;
+        transition: all 0.2s;
+    }
+    .user-item.inactive-user {
+        opacity: 0.7;
+        background: #fafcff;
+    }
+    .user-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .user-summary {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.8rem 1rem;
+        background: #fafcff;
+        border-radius: 1rem 1rem 0 0;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .user-avatar i {
+        font-size: 2rem;
+        color: #94a3b8;
+    }
+    .user-core {
+        flex: 2;
+    }
+    .user-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #0f172a;
+        margin-bottom: 0.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .superuser-badge {
+        background: #fef9c3;
+        color: #854d0e;
+        font-size: 0.6rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 30px;
+        font-weight: 600;
+    }
+    .inactive-badge {
+        background: #fee2e2;
+        color: #991b1b;
+        font-size: 0.6rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 30px;
+        font-weight: 600;
+    }
+    .user-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-bottom: 0.2rem;
+        flex-wrap: wrap;
+    }
+    .user-meta i, .user-dates i {
+        width: 0.9rem;
+        color: #94a3b8;
+    }
+    .user-dates {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.7rem;
+        color: #64748b;
+        flex-wrap: wrap;
+    }
+    .user-roles-badge {
+        flex: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        justify-content: flex-end;
+    }
+    .role-pill {
+        background: #eef2ff;
+        color: #1e293b;
+        padding: 0.2rem 0.6rem;
+        border-radius: 30px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    .role-pill.muted {
+        background: #f1f5f9;
+        color: #94a3b8;
+    }
+    .user-role-form {
+        padding: 0.8rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .role-assign-form {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 2;
+        flex-wrap: wrap;
+    }
+    .role-checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        flex: 2;
+    }
+    .role-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #fff;
+        padding: 0.2rem 0.6rem 0.2rem 0.4rem;
+        border-radius: 30px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: all 0.1s;
+    }
+    .role-option:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .role-option input {
+        margin: 0;
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+    }
+    .role-option span {
+        user-select: none;
+    }
+    .btn-update {
+        background: #1e293b;
+        color: white;
+        border: none;
+        padding: 0.3rem 1rem;
+        border-radius: 30px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.2s;
+        white-space: nowrap;
+    }
+    .btn-update:hover {
+        background: #334155;
+    }
+    .user-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .action-btn {
+        background: none;
+        border: 1px solid #e2e8f0;
+        padding: 0.3rem 0.8rem;
+        border-radius: 30px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        text-decoration: none;
+    }
+    .action-btn.activate {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+    }
+    .action-btn.deactivate {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fecaca;
+    }
+    .action-btn.reset {
+        background: #eef2ff;
+        color: #1e293b;
+        border-color: #e0e7ff;
+    }
+    .action-btn:hover {
+        transform: translateY(-1px);
+    }
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    .page-link {
+        background: white;
+        border: 1px solid #e2e8f0;
+        padding: 0.3rem 0.8rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: 0.2s;
+    }
+    .page-link:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .current-page {
+        font-size: 0.75rem;
+        color: #475569;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: #f8fafc;
+        border-radius: 1rem;
+        color: #94a3b8;
+        border: 1px solid #eef2ff;
+    }
+    .empty-state i {
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+    @media (max-width: 900px) {
+        .user-summary {
+            flex-wrap: wrap;
+        }
+        .user-roles-badge {
+            justify-content: flex-start;
+            margin-top: 0.2rem;
+        }
+        .user-role-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .role-assign-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .role-checkboxes {
+            justify-content: center;
+        }
+        .user-actions {
+            justify-content: flex-end;
+        }
+    }
+
+        .search-bar {
+        position: relative;
+        margin-bottom: 1.2rem;
+    }
+    .search-bar i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 0.8rem;
+    }
+    .search-bar input {
+        width: 100%;
+        padding: 0.6rem 1rem 0.6rem 2.2rem;
+        border-radius: 2rem;
+        border: 1px solid #e2e8f0;
+        background: white;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+    }
+    .search-bar input:focus {
+        outline: none;
+        border-color: #94a3b8;
+        box-shadow: 0 0 0 2px #e2e8f0;
+    }
+    .no-results {
+        text-align: center;
+        padding: 3rem;
+        background: #f8fafc;
+        border-radius: 1rem;
+        color: #94a3b8;
+        margin-top: 1rem;
+    }
+</style>
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken') || getCookie('app1_csrftoken');
+
+    // Password reset modal logic (unchanged)
+    const modal = document.getElementById('resetPasswordModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelResetBtn');
+    const resetForm = document.getElementById('resetPasswordForm');
+    const resetUserInfo = document.getElementById('resetUserInfo');
+    const errorDiv = document.getElementById('resetErrorMessages');
+    let currentUserId = null;
+
+    function openResetModal(userId, username) {
+        currentUserId = userId;
+        resetUserInfo.innerHTML = `Set a new password for <strong>${escapeHtml(username)}</strong>`;
+        errorDiv.style.display = 'none';
+        errorDiv.innerHTML = '';
+        resetForm.reset();
+        modal.classList.add('active');
+    }
+
+    function closeModal() {
+        modal.classList.remove('active');
+        currentUserId = null;
+    }
+
+    document.querySelectorAll('.reset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const userId = btn.dataset.userId;
+            const username = btn.dataset.username;
+            openResetModal(userId, username);
+        });
+    });
+
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    resetForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const new_password1 = document.getElementById('new_password1').value;
+        const new_password2 = document.getElementById('new_password2').value;
+        errorDiv.style.display = 'none';
+        errorDiv.innerHTML = '';
+
+        const formData = new FormData();
+        formData.append('new_password1', new_password1);
+        formData.append('new_password2', new_password2);
+        formData.append('csrfmiddlewaretoken', csrftoken);
+
+        try {
+            const url = `/staff/users/${currentUserId}/reset-password/`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                alert('Password reset successfully.');
+                closeModal();
+            } else {
+                let errorMsg = '';
+                if (data.errors) {
+                    for (const [field, msg] of Object.entries(data.errors)) {
+                        errorMsg += `${msg}<br>`;
+                    }
+                } else {
+                    errorMsg = data.error || 'An error occurred. Please try again.';
+                }
+                errorDiv.innerHTML = errorMsg;
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.innerHTML = 'Network error. Please check console and try again.';
+            errorDiv.style.display = 'block';
+        }
+    });
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+
+
+    // ---------- Edit User Modal ----------
+    const editModal = document.getElementById('editUserModal');
+    const closeEditModalBtn = document.getElementById('closeEditUserModalBtn');
+    const cancelEditBtn = document.getElementById('cancelEditUserBtn');
+    const editForm = document.getElementById('editUserForm');
+    const editUserId = document.getElementById('editUserId');
+    const editFirstName = document.getElementById('editFirstName');
+    const editLastName = document.getElementById('editLastName');
+    const editEmail = document.getElementById('editEmail');
+    const editDepartment = document.getElementById('editDepartment');
+    const editUserError = document.getElementById('editUserError');
+
+    function openEditModal(userId, firstName, lastName, email, department) {
+        editUserId.value = userId;
+        editFirstName.value = firstName || '';
+        editLastName.value = lastName || '';
+        editEmail.value = email || '';
+        // editDepartment.value = department || '';
+        if (department) {
+            editDepartment.value = department;
+        } else {
+            editDepartment.value = '';
+        }
+        editUserError.style.display = 'none';
+        editModal.classList.add('active');
+    }
+
+    function closeEditModal() {
+        editModal.classList.remove('active');
+    }
+
+    document.querySelectorAll('.edit-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+            openEditModal(
+                btn.dataset.userId,
+                btn.dataset.firstName,
+                btn.dataset.lastName,
+                btn.dataset.email,
+                btn.dataset.department
+            );
+        });
+    });
+
+    closeEditModalBtn.addEventListener('click', closeEditModal);
+    cancelEditBtn.addEventListener('click', closeEditModal);
+    editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditModal(); });
+
+    editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = editUserId.value;
+        const formData = new FormData();
+        formData.append('first_name', editFirstName.value);
+        formData.append('last_name', editLastName.value);
+        formData.append('email', editEmail.value);
+        formData.append('department', editDepartment.value);
+        formData.append('csrfmiddlewaretoken', csrftoken);
+
+        try {
+            const response = await fetch(`/staff/users/${userId}/edit/`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                alert('User updated successfully!');
+                window.location.reload();  
+            } else {
+                editUserError.innerHTML = data.error || 'An error occurred.';
+                editUserError.style.display = 'block';
+            }
+        } catch (err) {
+            editUserError.innerHTML = 'Network error. Please try again.';
+            editUserError.style.display = 'block';
+        }
+    });
+
+
+ 
+    // ---------- Live search as you type ----------
+    const searchInput = document.getElementById('userSearchInput');
+    const userCards = document.querySelectorAll('.user-item');
+    const usersList = document.getElementById('usersList');
+    const paginationContainer = document.getElementById('paginationContainer');
+    const noResultsDiv = document.getElementById('noSearchResults');
+
+    if (searchInput) {
+        function filterUsers() {
+            const query = searchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            userCards.forEach(card => {
+                const username = card.getAttribute('data-username') || '';
+                const email = card.getAttribute('data-email') || '';
+                const department = card.getAttribute('data-department') || '';
+                const matches = query === '' || username.includes(query) || email.includes(query) || department.includes(query);
+                card.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+
+            // Show/hide "no results" message and pagination
+            if (visibleCount === 0 && query !== '') {
+                if (paginationContainer) paginationContainer.style.display = 'none';
+                noResultsDiv.style.display = 'block';
+            } else {
+                if (paginationContainer) paginationContainer.style.display = '';
+                noResultsDiv.style.display = 'none';
+            }
+        }
+
+        // Debounce to avoid excessive reflows
+        let debounceTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(filterUsers, 200);
+        });
+    }
+</script>
+{% endblock %}

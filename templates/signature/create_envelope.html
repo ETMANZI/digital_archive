@@ -1,0 +1,237 @@
+<!-- templates/signature/create_envelope.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .pdf-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .drop-zone {
+        position: absolute;
+        border: 2px dashed #007bff;
+        background: rgba(0, 123, 255, 0.1);
+        cursor: move;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: #007bff;
+    }
+    
+    .drop-zone:hover {
+        background: rgba(0, 123, 255, 0.2);
+        border-color: #0056b3;
+    }
+    
+    .field-toolbar {
+        position: fixed;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        width: 200px;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .field-type {
+        padding: 10px;
+        margin: 5px 0;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        cursor: grab;
+        text-align: center;
+    }
+    
+    .field-type:active {
+        cursor: grabbing;
+    }
+    
+    .recipient-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .recipient-badge {
+        padding: 5px;
+        margin: 2px;
+        background: #e9ecef;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2">
+            <div class="field-toolbar">
+                <h6>Drag & Drop Fields</h6>
+                <div class="field-type" data-field-type="signature" draggable="true">
+                    ✍️ Signature
+                </div>
+                <div class="field-type" data-field-type="initial" draggable="true">
+                    🔤 Initials
+                </div>
+                <div class="field-type" data-field-type="date" draggable="true">
+                    📅 Date
+                </div>
+                <div class="field-type" data-field-type="text" draggable="true">
+                    📝 Text Field
+                </div>
+                
+                <hr>
+                
+                <h6>Recipients</h6>
+                <div class="recipient-list">
+                    {% for recipient in recipients %}
+                    <div class="recipient-badge" data-recipient-id="{{ recipient.id }}">
+                        {{ recipient.full_name }}
+                        <small>({{ recipient.get_role_display }})</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <hr>
+                
+                <button class="btn btn-primary btn-block" onclick="sendEnvelope()">
+                    Send for Signature
+                </button>
+            </div>
+        </div>
+        
+        <div class="col-md-10">
+            <div class="pdf-container" id="pdf-container" style="position: relative;">
+                <canvas id="pdf-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+let pdfDoc = null;
+let currentPage = 1;
+let scale = 1.5;
+let dropZones = [];
+let currentRecipient = null;
+
+// Drag and drop functionality
+document.querySelectorAll('.field-type').forEach(field => {
+    field.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('field-type', this.dataset.fieldType);
+        currentRecipient = prompt('Select recipient ID (from list above):');
+        e.dataTransfer.setData('recipient-id', currentRecipient);
+    });
+});
+
+// PDF container drop zone
+const pdfContainer = document.getElementById('pdf-container');
+pdfContainer.addEventListener('dragover', function(e) {
+    e.preventDefault();
+});
+
+pdfContainer.addEventListener('drop', function(e) {
+    e.preventDefault();
+    
+    const fieldType = e.dataTransfer.getData('field-type');
+    const recipientId = e.dataTransfer.getData('recipient-id');
+    
+    // Get drop coordinates relative to canvas
+    const rect = pdfContainer.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Get current page and scale
+    // This calculation depends on your PDF.js rendering
+    
+    // Create drop zone visual
+    createDropZone(x, y, fieldType, recipientId);
+});
+
+function createDropZone(x, y, fieldType, recipientId) {
+    const zone = document.createElement('div');
+    zone.className = 'drop-zone';
+    zone.style.left = `${x}px`;
+    zone.style.top = `${y}px`;
+    zone.style.width = '150px';
+    zone.style.height = '50px';
+    zone.innerHTML = getFieldLabel(fieldType);
+    zone.dataset.fieldType = fieldType;
+    zone.dataset.recipientId = recipientId;
+    zone.dataset.x = x;
+    zone.dataset.y = y;
+    
+    // Make resizable
+    makeResizable(zone);
+    
+    pdfContainer.appendChild(zone);
+    dropZones.push(zone);
+}
+
+function getFieldLabel(fieldType) {
+    const labels = {
+        'signature': '✍️ Sign Here',
+        'initial': '🔤 Initials',
+        'date': '📅 Date',
+        'text': '📝 Text'
+    };
+    return labels[fieldType] || fieldType;
+}
+
+function makeResizable(element) {
+    // Simple resizable implementation
+    let startX, startY, startWidth, startHeight;
+    
+    element.addEventListener('mousedown', function(e) {
+        if (e.target === element) {
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = parseInt(element.style.width);
+            startHeight = parseInt(element.style.height);
+            
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        }
+    });
+    
+    function resize(e) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        element.style.width = `${startWidth + dx}px`;
+        element.style.height = `${startHeight + dy}px`;
+    }
+    
+    function stopResize() {
+        document.removeEventListener('mousemove', resize);
+        document.removeEventListener('mouseup', stopResize);
+    }
+}
+
+function sendEnvelope() {
+    const fields = dropZones.map(zone => ({
+        recipient_id: parseInt(zone.dataset.recipientId),
+        field_type: zone.dataset.fieldType,
+        page_number: currentPage - 1,
+        x: parseFloat(zone.dataset.x) / scale,
+        y: parseFloat(zone.dataset.y) / scale,
+        width: parseFloat(zone.style.width) / scale,
+        height: parseFloat(zone.style.height) / scale,
+        label: zone.innerHTML
+    }));
+    
+    // Submit form with fields data
+    const form = document.getElementById('envelope-form');
+    document.getElementById('fields-data').value = JSON.stringify(fields);
+    form.submit();
+}
+</script>
+{% endblock %}

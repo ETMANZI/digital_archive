@@ -1,0 +1,707 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pending Deletion Requests{% endblock %}
+
+{% block content %}
+<style>
+  /* Page Header */
+  .page-header-modern {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  
+  .page-header-modern h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #1e293b, #3b82f6);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  
+  .page-header-modern p {
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+
+  /* Stats Cards */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  
+  .stat-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  .stat-card i {
+    font-size: 2rem;
+    color: #3b82f6;
+  }
+  
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0.25rem 0;
+  }
+  
+  .stat-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Card */
+  .pending-card {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .pending-card .card-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+  }
+  
+  .pending-card .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .pending-card .card-header i {
+    color: #3b82f6;
+  }
+  
+  .pending-card .card-body {
+    padding: 1.25rem;
+  }
+
+  /* Table */
+  .pending-table {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+  
+  .pending-table thead th {
+    background: #f8fafc;
+    padding: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .pending-table tbody td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .pending-table tbody tr:hover {
+    background: #f8fafc;
+  }
+
+  /* Badges */
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+  
+  .type-badge.file {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  
+  .type-badge.folder {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  /* Buttons */
+  .btn-approve {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+    color: white;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    margin-right: 0.5rem;
+  }
+  
+  .btn-approve:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+  }
+  
+  .btn-reject {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+    color: white;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+  }
+  
+  .btn-reject:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+  }
+
+  .btn-view {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border: none;
+    color: white;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    margin-right: 0.5rem;
+  }
+  
+  .btn-view:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  }
+
+  /* Reason column */
+  .reason-text {
+    max-width: 200px;
+    white-space: normal;
+    word-break: break-word;
+    font-size: 0.75rem;
+    color: #475569;
+  }
+
+  /* Modal Styles (copied from recycle bin) */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+  #previewModal {
+    z-index: 2100;
+  }
+  .modal-card {
+    background: white;
+    border-radius: 1.5rem;
+    width: 90%;
+    max-width: 1400px;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #eef2ff;
+    background: white;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #64748b;
+  }
+  .close-modal:hover {
+    color: #dc2626;
+  }
+  .modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+  .modal-card.small-modal {
+    max-width: 1000px;
+  }
+  .table-responsive-sm {
+    overflow-x: auto;
+  }
+  .text-center {
+    text-align: center;
+  }
+  .py-4 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .text-danger {
+    color: #dc2626;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #94a3b8;
+  }
+  .empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+  .empty-state h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .pending-table thead {
+      display: none;
+    }
+    .pending-table tbody td {
+      display: block;
+      text-align: right;
+      padding: 0.5rem;
+      position: relative;
+    }
+    .pending-table tbody td::before {
+      content: attr(data-label);
+      position: absolute;
+      left: 0.5rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+  }
+</style>
+
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="page-header-modern">
+    <h1>
+      <i class="fas fa-clock"></i> Pending Deletion Requests
+    </h1>
+    <p>Review and approve or reject deletion requests from Archive Managers</p>
+  </div>
+
+  <!-- Statistics Cards - FIXED: use variables from view -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <i class="fas fa-hourglass-half"></i>
+      <div class="stat-number">{{ requests|length }}</div>
+      <div class="stat-label">Pending Requests</div>
+    </div>
+    <div class="stat-card">
+      <i class="fas fa-file-alt"></i>
+      <div class="stat-number">{{ files_count }}</div>
+      <div class="stat-label">Files to Delete</div>
+    </div>
+    <div class="stat-card">
+      <i class="fas fa-folder"></i>
+      <div class="stat-number">{{ folders_count }}</div>
+      <div class="stat-label">Folders to Delete</div>
+    </div>
+  </div>
+
+  <!-- Main Card -->
+  <div class="pending-card">
+    <div class="card-header">
+      <h5>
+        <i class="fas fa-list"></i> Deletion Requests
+        <span class="badge" style="background: #e2e8f0; color: #475569;">
+          {{ requests|length }}
+        </span>
+      </h5>
+    </div>
+    <div class="card-body">
+      {% if requests %}
+        <div class="table-responsive">
+          <table class="pending-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Target</th>
+                <th>Requested By</th>
+                <th>Reason</th>
+                <th>Requested At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for req in requests %}
+              <tr>
+                <td data-label="Type">
+                  {% if req.item_file %}
+                    <span class="type-badge file">
+                      <i class="fas fa-file-alt"></i> File
+                    </span>
+                  {% else %}
+                    <span class="type-badge folder">
+                      <i class="fas fa-folder"></i> Folder
+                    </span>
+                  {% endif %}
+                </td>
+                <td data-label="Target">
+                  {% if req.item_file %}
+                    <strong>{{ req.item_file.file_name }}</strong>
+                    <br>
+                    <small class="text-muted">{{ req.item_file.folder.archive_item.title }}</small>
+                  {% else %}
+                    <strong>{{ req.item_folder.folder_type.name }}</strong>
+                    <br>
+                    <small class="text-muted">{{ req.item_folder.archive_item.title }}</small>
+                  {% endif %}
+                </td>
+                <td data-label="Requested By">
+                  {{ req.requested_by.get_full_name|default:req.requested_by.username }}
+                  <br>
+                  <small class="text-muted">{{ req.requested_by.email }}</small>
+                </td>
+                <td data-label="Reason">
+                  <div class="reason-text">
+                    {{ req.reason|default:"<em class='text-muted'>No reason provided</em>"|safe }}
+                  </div>
+                </td>
+                <td data-label="Requested At">
+                  {{ req.requested_at|date:"Y-m-d" }}
+                  <br>
+                  <small class="text-muted">{{ req.requested_at|date:"H:i" }}</small>
+                </td>
+                <td data-label="Actions">
+                  {% if req.item_file %}
+                    <button class="btn-view" onclick="openPreview('{{ req.item_file.stored_path|escapejs }}', '{{ req.item_file.file_name|escapejs }}')">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                  {% else %}
+                    <button class="btn-view" onclick="viewFolderFiles({{ req.item_folder.id }}, '{{ req.item_folder.folder_type.name|escapejs }}')">
+                      <i class="fas fa-folder-open"></i> View Files
+                    </button>
+                  {% endif %}
+                  <button class="btn-approve" onclick="approveRequest({{ req.id }})">
+                    <i class="fas fa-check"></i> Approve
+                  </button>
+                  <button class="btn-reject" onclick="rejectRequest({{ req.id }})">
+                    <i class="fas fa-times"></i> Reject
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-check-circle"></i>
+          <h4>No Pending Requests</h4>
+          <p>All deletion requests have been processed.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal (for files) -->
+<div id="previewModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><i class="fas fa-file-alt"></i> <span id="previewFileName"></span></h3>
+      <button class="close-modal" id="closePreviewModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <iframe id="previewFrame" src="about:blank"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for listing files inside a folder (for folder deletion requests) -->
+<div id="folderFilesModal" class="modal-overlay">
+  <div class="modal-card small-modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-folder-open"></i> Files in: <span id="modalFolderName"></span></h3>
+      <button class="close-modal" id="closeFolderFilesModalBtn">&times;</button>
+    </div>
+    <div class="modal-body" style="padding: 1rem;">
+      <div id="folderFilesLoading" class="text-center py-4">Loading files...</div>
+      <div id="folderFilesContent" style="display: none;">
+        <div class="table-responsive-sm">
+          <table class="deleted-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Path (inside folder)</th>
+                <th>Size</th>
+                <th>Uploaded At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="folderFilesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================== Preview Modal (files) ========================
+const previewModal = document.getElementById('previewModal');
+const previewFrame = document.getElementById('previewFrame');
+const previewFileNameSpan = document.getElementById('previewFileName');
+const closePreviewBtn = document.getElementById('closePreviewModalBtn');
+
+function openPreview(storedPath, fileName) {
+    // Close folder modal if open
+    if (folderFilesModal.classList.contains('active')) {
+        closeFolderFilesModal();
+    }
+    const url = `/serve-file/${encodeURIComponent(storedPath)}/`;
+    previewFileNameSpan.innerText = fileName;
+    previewFrame.src = url;
+    previewModal.classList.add('active');
+}
+
+function closePreviewModal() {
+    previewModal.classList.remove('active');
+    previewFrame.src = 'about:blank';
+}
+if (closePreviewBtn) closePreviewBtn.addEventListener('click', closePreviewModal);
+previewModal.addEventListener('click', (e) => { if (e.target === previewModal) closePreviewModal(); });
+
+// ======================== Folder Files Modal ========================
+const folderFilesModal = document.getElementById('folderFilesModal');
+const closeFolderFilesBtn = document.getElementById('closeFolderFilesModalBtn');
+const modalFolderNameSpan = document.getElementById('modalFolderName');
+const folderFilesLoading = document.getElementById('folderFilesLoading');
+const folderFilesContent = document.getElementById('folderFilesContent');
+const folderFilesTableBody = document.getElementById('folderFilesTableBody');
+
+function viewFolderFiles(folderId, folderName) {
+    modalFolderNameSpan.innerText = folderName;
+    folderFilesLoading.style.display = 'block';
+    folderFilesContent.style.display = 'none';
+    folderFilesModal.classList.add('active');
+
+    // Endpoint: returns all files in the folder (not necessarily deleted)
+    fetch(`/folders/${folderId}/files/`, {
+        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch files');
+        return response.json();
+    })
+    .then(data => {
+        const files = data.files;  // expects: [{ id, name, relative_path, size, stored_path, uploaded_at }]
+        folderFilesTableBody.innerHTML = '';
+        if (files.length === 0) {
+            folderFilesTableBody.innerHTML = '<tr><td colspan="5" class="empty-message">No files in this folder</td></tr>';
+        } else {
+            files.forEach(file => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(file.name)}</td>
+                    <td>${escapeHtml(file.relative_path || '')}</td>
+                    <td>${formatBytes(file.size)}</td>
+                    <td>${new Date(file.uploaded_at).toLocaleString()}</td>
+                    <td>
+                        <button class="btn-sm-view" onclick="openPreview('${escapeJs(file.stored_path)}', '${escapeJs(file.name)}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                     </td>
+                `;
+                folderFilesTableBody.appendChild(row);
+            });
+        }
+        folderFilesLoading.style.display = 'none';
+        folderFilesContent.style.display = 'block';
+    })
+    .catch(error => {
+        console.error(error);
+        folderFilesLoading.innerHTML = '<div class="text-danger">Error loading files. Please try again.</div>';
+    });
+}
+
+function closeFolderFilesModal() {
+    folderFilesModal.classList.remove('active');
+}
+if (closeFolderFilesBtn) closeFolderFilesBtn.addEventListener('click', closeFolderFilesModal);
+folderFilesModal.addEventListener('click', (e) => { if (e.target === folderFilesModal) closeFolderFilesModal(); });
+
+// ======================== Helper functions ========================
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function escapeJs(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ======================== Approve / Reject functions ========================
+function approveRequest(id) {
+  if (confirm('Approve this deletion request?\n\nThe item will be soft-deleted and moved to the recycle bin.')) {
+    fetch(`/api/approve-deletion/${id}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => {
+      if (response.ok) {
+        location.reload();
+      } else {
+        alert('Error approving request.');
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+  }
+}
+
+function rejectRequest(id) {
+  let reason = prompt('Rejection reason (optional):');
+  if (reason !== null) {
+    fetch(`/api/reject-deletion/${id}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason: reason || "" })
+    })
+    .then(response => {
+      if (response.ok) {
+        location.reload();
+      } else {
+        alert('Error rejecting request.');
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+  }
+}
+
+function getCookie(name) {
+  let value = null;
+  if (document.cookie) {
+    document.cookie.split(';').forEach(c => {
+      c = c.trim();
+      if (c.startsWith(name + '=')) value = decodeURIComponent(c.slice(name.length + 1));
+    });
+  }
+  return value;
+}
+</script>
+
+<style>
+  /* Additional style for the small view button inside folder modal */
+  .btn-sm-view {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-sm-view:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+  .deleted-table {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+  .deleted-table thead th {
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+  }
+  .deleted-table tbody td {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .deleted-table tbody tr:hover {
+    background: #f8fafc;
+  }
+  .empty-message {
+    text-align: center;
+    padding: 2rem;
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+</style>
+
+{% endblock %}

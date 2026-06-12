@@ -1,0 +1,555 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manage Letter - {{ letter.title }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+  .signing-container {
+    display: flex;
+    height: calc(100vh - 120px);
+    background: #f1f5f9;
+  }
+  .pdf-viewer {
+    flex: 1;
+    background: #525659;
+    overflow: auto;
+    text-align: center;
+    padding: 20px;
+    position: relative;
+  }
+  #pdf-page-container {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto;
+  }
+  #pdf-canvas {
+    display: block;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  }
+  #fields-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .signature-field {
+    position: absolute;
+    border: 2px dashed #3b82f6;
+    background: rgba(59,130,246,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: move;
+    font-size: 12px;
+    z-index: 1000;
+    user-select: none;
+    pointer-events: auto;
+    box-sizing: border-box;
+    padding: 4px;
+  }
+  .signature-field:hover { background: rgba(59,130,246,0.2); }
+  .signature-field.filled { border: none !important; background: transparent !important; }
+  .signature-field.filled .resize-handle { display: none !important; }
+  .signature-field img { max-width: 95%; max-height: 65%; object-fit: contain; pointer-events: none; margin-bottom: 4px; }
+  .signature-stamp { font-size: 9px; color: #1e293b; text-align: center; font-family: monospace; background: rgba(255,255,240,0.9); border-radius: 4px; padding: 2px 4px; width: 95%; word-wrap: break-word; white-space: normal; line-height: 1.2; margin-top: 2px; }
+  .resize-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    right: -5px;
+    bottom: -5px;
+    background: #2563eb;
+    cursor: nwse-resize;
+    border-radius: 2px;
+    pointer-events: auto;
+  }
+  .signing-toolbar {
+    width: 320px;
+    background: white;
+    border-left: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+  }
+  .field-types {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .field-type-btn {
+    padding: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .field-type-btn:hover {
+    background: #e0f2fe;
+    border-color: #3b82f6;
+  }
+  .recipients-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .recipient-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .recipient-item:last-child { border-bottom: none; }
+  .btn-remove-rec {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .btn-remove-rec:hover { color: #dc2626; }
+  .page-controls {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    display: flex;
+    gap: 1rem;
+    z-index: 100;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="signing-container">
+  <div class="pdf-viewer" id="pdf-viewer">
+    <div id="pdf-page-container">
+      <canvas id="pdf-canvas"></canvas>
+      <div id="fields-container"></div>
+    </div>
+  </div>
+  <div class="signing-toolbar">
+    <h5>{{ letter.title }}</h5>
+    <hr>
+
+    <div class="mb-3">
+      <strong>Signers</strong>
+      <div id="recipientsList" class="recipients-list mt-1">
+        {% for sr in recipients %}
+        <div class="recipient-item" data-id="{{ sr.id }}">
+          <span>{{ sr.recipient.get_full_name|default:sr.recipient.username }} ({{ sr.get_status_display }})</span>
+          {% if sr.status == 'pending' %}
+            <button class="btn-remove-rec" data-id="{{ sr.id }}"><i class="fas fa-trash"></i></button>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="p-2 text-muted text-center">No signers added yet</div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-sm btn-primary mt-2" id="addRecipientBtn"><i class="fas fa-plus"></i> Add Signer</button>
+    </div>
+
+    <hr>
+    <div class="field-types">
+      <div class="field-type-btn" draggable="true" data-field-type="signature"><i class="fas fa-signature"></i> Signature</div>
+      <div class="field-type-btn" draggable="true" data-field-type="date"><i class="fas fa-calendar-alt"></i> Date</div>
+      <div class="field-type-btn" draggable="true" data-field-type="initial"><i class="fas fa-font"></i> Initials</div>
+      <div class="field-type-btn" draggable="true" data-field-type="text"><i class="fas fa-text-height"></i> Text</div>
+    </div>
+
+    <div id="fields-list" style="flex:1; overflow-y:auto;">
+      <h6>Placed Fields</h6>
+      <div id="dynamic-fields"></div>
+    </div>
+  </div>
+</div>
+
+<div class="page-controls">
+  <button class="btn btn-sm btn-secondary" onclick="changePage(-1)">Previous</button>
+  <span id="page-num" class="mx-2">1 / 1</span>
+  <button class="btn btn-sm btn-secondary" onclick="changePage(1)">Next</button>
+</div>
+
+<!-- Modal for adding recipient -->
+<div class="modal fade" id="addRecipientModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5>Add Signer</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="userSearch" class="form-control" placeholder="Search user by name or email">
+        <div id="searchResults" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+let pdfDoc = null;
+let pageNum = 1;
+let scale = 1.5;
+let fields = [];
+
+const pdfUrl = "{{ pdf_url|safe }}";
+const letterId = {{ letter.id }};
+let selectedRecipientId = null; // to assign fields to a specific signer
+
+if (!pdfUrl) { alert('PDF not found.'); throw new Error('No PDF URL'); }
+
+// Load existing fields (we'll fetch from API or pass via context)
+// For simplicity, we start with empty fields array; fields will be saved to server on drop.
+function loadFields() {
+  // If you want to load existing fields from server, implement a GET endpoint.
+  // For now, fields are stored only client-side and sent to server on each drop.
+}
+
+function saveFieldToServer(field) {
+  // POST to /letters/api/add-field/
+  return fetch('/letters/api/add-field/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({
+      type: field.type,
+      page: field.page,
+      x: field.x,
+      y: field.y,
+      width: field.width,
+      height: field.height,
+      signature_request_id: selectedRecipientId  // need to select which recipient
+    })
+  }).then(res => res.json());
+}
+
+// PDF rendering (same as before)
+pdfjsLib.getDocument(pdfUrl).promise.then(function(pdfDoc_) {
+  pdfDoc = pdfDoc_;
+  document.getElementById('page-num').innerText = `1 / ${pdfDoc.numPages}`;
+  renderPage(pageNum);
+}).catch(function(error) { alert('Failed to load PDF.'); });
+
+function renderPage(num) {
+  if (!pdfDoc) return;
+  pdfDoc.getPage(num).then(function(page) {
+    const viewport = page.getViewport({ scale: scale });
+    const canvas = document.getElementById('pdf-canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const pageContainer = document.getElementById('pdf-page-container');
+    pageContainer.style.width = viewport.width + 'px';
+    pageContainer.style.height = viewport.height + 'px';
+    const fieldsContainer = document.getElementById('fields-container');
+    fieldsContainer.style.width = viewport.width + 'px';
+    fieldsContainer.style.height = viewport.height + 'px';
+    page.render({ canvasContext: context, viewport: viewport }).promise.then(() => {
+      positionFields();
+    });
+  });
+}
+
+function positionFields() {
+  const container = document.getElementById('fields-container');
+  container.innerHTML = '';
+  fields.forEach(field => {
+    if (field.page === pageNum - 1) renderField(field);
+  });
+}
+
+function renderField(field) {
+  const container = document.getElementById('fields-container');
+  let existing = document.getElementById(`field-${field.id}`);
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = `field-${field.id}`;
+  div.className = `signature-field ${field.value ? 'filled' : ''}`;
+  div.style.left = field.x + 'px';
+  div.style.top = field.y + 'px';
+  div.style.width = field.width + 'px';
+  div.style.height = field.height + 'px';
+  div.style.display = 'flex';
+  div.style.flexDirection = 'column';
+  div.style.justifyContent = 'center';
+  div.style.alignItems = 'center';
+  if (field.value && (field.type === 'signature' || field.type === 'initial')) {
+    const img = document.createElement('img');
+    img.src = field.value;
+    div.appendChild(img);
+    if (field.stampText) {
+      const stamp = document.createElement('div');
+      stamp.className = 'signature-stamp';
+      stamp.innerText = field.stampText;
+      div.appendChild(stamp);
+    }
+  } else if (field.value) {
+    div.innerText = field.value;
+  } else {
+    div.innerText = getFieldLabel(field.type);
+  }
+  const handle = document.createElement('div');
+  handle.className = 'resize-handle';
+  div.appendChild(handle);
+  div.addEventListener('dblclick', (e) => { e.stopPropagation(); editField(field); });
+  makeDraggable(div, field);
+  makeResizable(div, field, handle);
+  container.appendChild(div);
+}
+
+function getFieldLabel(type) {
+  const labels = { 'signature': '✍️ Sign Here', 'date': '📅 Date', 'initial': '🔤 Initials', 'text': '📝 Text' };
+  return labels[type] || type;
+}
+
+const pageContainer = document.getElementById('pdf-page-container');
+pageContainer.addEventListener('dragover', (e) => e.preventDefault());
+pageContainer.addEventListener('drop', (e) => {
+  e.preventDefault();
+  if (!selectedRecipientId) {
+    alert('Please select a signer first (click on a recipient in the list)');
+    return;
+  }
+  const rect = pageContainer.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const fieldType = e.dataTransfer.getData('field-type');
+  addField(fieldType, x, y, pageNum - 1);
+});
+
+document.querySelectorAll('.field-type-btn').forEach(btn => {
+  btn.addEventListener('dragstart', (e) => e.dataTransfer.setData('field-type', btn.dataset.fieldType));
+});
+
+function addField(fieldType, x, y, page) {
+  const field = {
+    id: Date.now(),
+    type: fieldType,
+    page: page,
+    x: x, y: y,
+    width: 150,
+    height: 75,
+    value: null,
+    stampText: null
+  };
+  fields.push(field);
+  renderField(field);
+  updateFieldsList();
+  // Save to server
+  saveFieldToServer(field).then(data => {
+    if (data.success) {
+      field.serverId = data.field_id;
+    } else {
+      alert('Error saving field: ' + data.error);
+    }
+  });
+}
+
+function editField(field) {
+  // For creator, editing may not be needed, but we can keep simple
+  if (field.type === 'signature' || field.type === 'initial') {
+    alert('You can only place fields, not sign. Signers will add their signatures.');
+  } else if (field.type === 'date') {
+    field.value = new Date().toLocaleString();
+    renderField(field);
+    updateFieldsList();
+  } else if (field.type === 'text') {
+    const text = prompt('Enter default text:', field.value || '');
+    if (text !== null) {
+      field.value = text;
+      renderField(field);
+      updateFieldsList();
+    }
+  }
+}
+
+function makeDraggable(element, field) {
+  let startX, startY, dragging = false;
+  element.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('resize-handle')) return;
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+  const onMouseMove = (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    field.x += dx;
+    field.y += dy;
+    element.style.left = field.x + 'px';
+    element.style.top = field.y + 'px';
+    startX = e.clientX;
+    startY = e.clientY;
+  };
+  const onMouseUp = () => {
+    dragging = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+}
+
+function makeResizable(element, field, handle) {
+  let startW, startH, startX, startY, resizing = false;
+  handle.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizing = true;
+    startW = field.width;
+    startH = field.height;
+    startX = e.clientX;
+    startY = e.clientY;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+  const onMouseMove = (e) => {
+    if (!resizing) return;
+    const dw = e.clientX - startX;
+    const dh = e.clientY - startY;
+    field.width = Math.max(80, startW + dw);
+    field.height = Math.max(70, startH + dh);
+    element.style.width = field.width + 'px';
+    element.style.height = field.height + 'px';
+    renderField(field);
+  };
+  const onMouseUp = () => {
+    resizing = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+}
+
+function updateFieldsList() {
+  const container = document.getElementById('dynamic-fields');
+  container.innerHTML = fields.map(field => `
+    <div class="d-flex justify-content-between align-items-center p-2 mb-2 bg-light rounded">
+      <div><i class="fas ${field.type === 'signature' ? 'fa-signature' : field.type === 'date' ? 'fa-calendar' : 'fa-text-height'}"></i> ${field.type.toUpperCase()}</div>
+      <button class="btn btn-sm btn-danger" onclick="removeField(${field.id})">Remove</button>
+    </div>
+  `).join('');
+}
+
+function removeField(id) {
+  fields = fields.filter(f => f.id !== id);
+  const el = document.getElementById(`field-${id}`);
+  if (el) el.remove();
+  updateFieldsList();
+}
+
+function changePage(delta) {
+  const newPage = pageNum + delta;
+  if (newPage >= 1 && newPage <= pdfDoc.numPages) {
+    pageNum = newPage;
+    renderPage(pageNum);
+    document.getElementById('page-num').innerText = `${pageNum} / ${pdfDoc.numPages}`;
+  }
+}
+
+// Recipient selection
+function selectRecipient(recipientId) {
+  selectedRecipientId = recipientId;
+  document.querySelectorAll('.recipient-item').forEach(el => {
+    if (el.dataset.id == recipientId) el.style.background = '#e0f2fe';
+    else el.style.background = '';
+  });
+}
+document.querySelectorAll('.recipient-item').forEach(el => {
+  el.addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-remove-rec')) return;
+    selectRecipient(el.dataset.id);
+  });
+});
+if (document.querySelector('.recipient-item')) {
+  selectRecipient(document.querySelector('.recipient-item').dataset.id);
+}
+
+// Remove recipient
+document.querySelectorAll('.btn-remove-rec').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    const recipientId = this.closest('.recipient-item').dataset.id;
+    if (confirm('Remove this signer? This will also delete all fields assigned to them.')) {
+      const response = await fetch(`/letters/api/remove-recipient/${recipientId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+      });
+      if (response.ok) location.reload();
+      else alert('Error removing recipient');
+    }
+  });
+});
+
+// Add recipient modal
+document.getElementById('addRecipientBtn').addEventListener('click', () => {
+  $('#addRecipientModal').modal('show');
+});
+const userSearch = document.getElementById('userSearch');
+const searchResults = document.getElementById('searchResults');
+let debounce;
+userSearch.addEventListener('input', function() {
+  clearTimeout(debounce);
+  const q = this.value.trim();
+  if (q.length < 2) { searchResults.innerHTML = ''; return; }
+  debounce = setTimeout(() => {
+    fetch(`/letters/api/search-users/?q=${encodeURIComponent(q)}`)
+      .then(res => res.json())
+      .then(data => {
+        searchResults.innerHTML = data.map(user => `
+          <div class="p-2 border-bottom" data-id="${user.id}" data-name="${user.name}">
+            <strong>${user.name}</strong> (${user.email})
+          </div>
+        `).join('');
+        document.querySelectorAll('#searchResults div').forEach(div => {
+          div.addEventListener('click', async () => {
+            const userId = div.dataset.id;
+            const resp = await fetch(`/letters/api/add-recipient/${letterId}/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+              body: JSON.stringify({ user_id: userId })
+            });
+            const result = await resp.json();
+            if (result.success) location.reload();
+            else alert(result.error);
+          });
+        });
+      });
+  }, 300);
+});
+
+function getCookie(name) {
+  let value = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        value = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return value;
+}
+</script>
+{% endblock %}

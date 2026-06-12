@@ -1,0 +1,551 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ folder.name }}{% endblock %}
+
+{% block content %}
+<div class="shared-folder-view">
+    <!-- Header -->
+    <div class="folder-header">
+        <div class="header-left">
+            <h1><i class="fas fa-folder-open"></i> {{ folder.name }}</h1>
+            <p class="description">{{ folder.description|default:"No description" }}</p>
+        </div>
+        <a href="{% url 'archive:my_shared_folders' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i> Back to my folders
+        </a>
+    </div>
+
+    <!-- File list card -->
+    <div class="file-list-card">
+        <div class="card-header">
+            <div class="header-title">
+                <i class="fas fa-file-alt"></i> Files in this package
+                <span class="badge">{{ files|length }} file{{ files|length|pluralize }}</span>
+            </div>
+        </div>
+
+        {% if files %}
+            <div class="file-table">
+                <div class="file-table-header">
+                    <div class="col-number">#</div>
+                    <div class="col-file">File name</div>
+                    <div class="col-meta">Details</div>
+                    <div class="col-actions">Actions</div>
+                </div>
+                <div class="file-table-body">
+                    {% for item in files %}
+                        <div class="file-row" data-file-id="{{ item.file.id }}">
+                            <div class="col-number">{{ forloop.counter }}</div>
+                            <div class="col-file">
+                                <div class="file-name-wrapper">
+                                    <i class="fas fa-file-{{ item.mime_type|slice:':5'|default:'alt' }} file-icon"></i>
+                                    <div>
+                                        <div class="file-name">{{ item.file_name }}</div>
+                                        <div class="file-size">{{ item.file_size|filesizeformat }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-meta">
+                                {% if item.type == 'loan' %}
+                                    <div class="meta-line"><i class="fas fa-user"></i> {{ item.customer_name }} (ID: {{ item.customer_id }})</div>
+                                    <div class="meta-line"><i class="fas fa-hashtag"></i> Loan: {{ item.loan_id }}</div>
+                                    <div class="meta-line"><i class="fas fa-folder"></i> {{ item.folder_name }}</div>
+                                    <div class="meta-line"><i class="fas fa-calendar-alt"></i> {{ item.uploaded_at|date:"Y-m-d H:i" }}</div>
+                                {% else %}
+                                    <div class="meta-line"><i class="fas fa-file-alt"></i> Document: {{ item.title }}</div>
+                                    <div class="meta-line"><i class="fas fa-folder"></i> Folder: {{ item.folder_name }}</div>
+                                    <div class="meta-line"><i class="fas fa-calendar-alt"></i> {{ item.uploaded_at|date:"Y-m-d H:i" }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-actions">
+                                <button class="action-btn download" data-url="{% url 'archive:download_file' asset_uuid=item.asset_uuid %}?download=true" data-name="{{ item.file_name }}">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                <button class="action-btn preview" data-url="{% url 'archive:download_file' asset_uuid=item.asset_uuid %}" data-name="{{ item.file_name }}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-folder-open fa-3x"></i>
+                <p>No files in this package.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="modal-overlay">
+    <div class="modal-card modal-large">
+        <div class="modal-header">
+            <h3><i class="fas fa-file-alt"></i> <span id="previewFileName"></span></h3>
+            <button id="closePreviewModalBtn" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <iframe id="previewFrame" src="about:blank" style="width:100%; height:70vh;" frameborder="0"></iframe>
+        </div>
+    </div>
+</div>
+
+<!-- Access Denied Modal -->
+<div id="accessDeniedModal" class="modal-overlay">
+    <div class="modal-card modal-warning">
+        <div class="modal-header warning-header">
+            <div class="warning-icon">
+                <i class="fas fa-ban"></i>
+            </div>
+            <button class="close-modal" id="closeDeniedModalBtn">&times;</button>
+        </div>
+        <div class="modal-body warning-body">
+            <h3>Access Denied</h3>
+            <p>You do not have permission to download this file.</p>
+            <div class="warning-message">
+                <i class="fas fa-user-shield"></i>
+                <span>Only System Administrators and Archive Managers can download files from the archive.</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-primary" id="closeDeniedModalFooterBtn">OK</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .shared-folder-view {
+        max-width: 1400px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+
+    .folder-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .header-left h1 {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.2rem 0;
+    }
+    .description {
+        color: #475569;
+        margin: 0;
+        font-size: 0.85rem;
+    }
+    .back-button {
+        background: transparent;
+        border: 1px solid #cbd5e1;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 0.8rem;
+        transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .back-button:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+
+    .file-list-card {
+        background: white;
+        border-radius: 1.5rem;
+        border: 1px solid #eef2ff;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .card-header {
+        padding: 1rem 1.5rem;
+        background: #fafcff;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .header-title {
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .badge {
+        background: #eef2ff;
+        color: #1e293b;
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+
+    .file-table {
+        width: 100%;
+    }
+    .file-table-header {
+        display: grid;
+        grid-template-columns: 60px 1.5fr 2fr 100px;
+        background: #f8fafc;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #475569;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .file-row {
+        display: grid;
+        grid-template-columns: 60px 1.5fr 2fr 100px;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.1s ease;
+        align-items: center;
+    }
+    .file-row:hover {
+        background: #fefce8;
+    }
+    .col-number {
+        font-weight: 500;
+        color: #1e293b;
+        font-size: 0.85rem;
+    }
+    .file-name-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+    .file-icon {
+        font-size: 1.4rem;
+        color: #64748b;
+        width: 2rem;
+        text-align: center;
+    }
+    .file-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #0f172a;
+    }
+    .file-size {
+        font-size: 0.65rem;
+        color: #64748b;
+        margin-top: 0.1rem;
+    }
+    .col-meta {
+        font-size: 0.7rem;
+        color: #475569;
+        line-height: 1.4;
+    }
+    .meta-line {
+        display: inline-block;
+        margin-right: 1rem;
+        margin-bottom: 0.2rem;
+        white-space: nowrap;
+    }
+    .meta-line i {
+        width: 1rem;
+        color: #94a3b8;
+        margin-right: 0.2rem;
+    }
+    .col-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-start;
+    }
+    .action-btn {
+        background: none;
+        border: 1px solid #e2e8f0;
+        border-radius: 2rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: 0.1s;
+        color: #1e293b;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .action-btn.download:hover {
+        background: #dcfce7;
+        border-color: #bbf7d0;
+        color: #166534;
+    }
+    .action-btn.preview:hover {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        color: #1e40af;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #94a3b8;
+    }
+
+    /* Access Denied Modal Styles */
+    .modal-warning {
+        max-width: 450px;
+    }
+    .warning-header {
+        background: #fef2f2;
+        border-bottom-color: #fecaca;
+    }
+    .warning-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .warning-icon i {
+        font-size: 2rem;
+        color: #dc2626;
+    }
+    .warning-body {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    .warning-body h3 {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #991b1b;
+        margin: 0 0 0.5rem 0;
+    }
+    .warning-body p {
+        color: #475569;
+        margin-bottom: 1rem;
+    }
+    .warning-message {
+        background: #fef3c7;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #92400e;
+        font-size: 0.8rem;
+        margin-top: 1rem;
+    }
+    .warning-message i {
+        font-size: 1rem;
+    }
+
+    /* Common Modal Styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(3px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+        background: white;
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 1200px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.8rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #eef2ff;
+        display: flex;
+        justify-content: center;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #64748b;
+    }
+    .close-modal:hover {
+        color: #dc2626;
+    }
+    .modal-body { flex: 1; overflow: auto; }
+    #previewModal .modal-large { width: 95%; max-width: 1400px; height: 85vh; }
+    #previewModal .modal-body { padding: 0; }
+    #previewModal iframe { width: 100%; height: 100%; border: none; }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        border: none;
+        padding: 0.5rem 1.5rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+    .btn-primary:hover {
+        background: #334155;
+    }
+
+    @media (max-width: 1000px) {
+        .file-table-header, .file-row {
+            grid-template-columns: 50px 1.5fr 1.8fr 80px;
+        }
+        .meta-line { white-space: normal; display: block; }
+    }
+    @media (max-width: 768px) {
+        .file-table-header { display: none; }
+        .file-row {
+            display: block;
+            padding: 1rem;
+            border-bottom: 1px solid #eef2ff;
+        }
+        .col-number, .col-file, .col-meta, .col-actions {
+            margin-bottom: 0.5rem;
+        }
+        .col-actions { justify-content: flex-end; }
+        .file-name-wrapper { flex-wrap: wrap; }
+    }
+</style>
+
+<script>
+    function getCookie(name) {
+        let v = null;
+        if (document.cookie) {
+            document.cookie.split(';').forEach(c => {
+                c = c.trim();
+                if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+            });
+        }
+        return v;
+    }
+
+    // Preview Modal
+    const previewModal = document.getElementById('previewModal');
+    const previewIframe = document.getElementById('previewFrame');
+    const previewFileName = document.getElementById('previewFileName');
+    const closePreviewBtn = document.getElementById('closePreviewModalBtn');
+
+    function openPreview(url, name) {
+        if (!url || url === 'undefined') {
+            console.error('Invalid preview URL');
+            alert('Cannot preview this file. Invalid URL.');
+            return;
+        }
+        
+        previewFileName.innerText = name;
+        let finalUrl = url;
+        if (name && name.toLowerCase().endsWith('.pdf')) {
+            finalUrl = url.split('#')[0] + '#toolbar=0&navpanes=0&scrollbar=0';
+        }
+        previewIframe.src = finalUrl;
+        previewModal.classList.add('active');
+    }
+    
+    function closePreviewModal() {
+        previewModal.classList.remove('active');
+        previewIframe.src = 'about:blank';
+    }
+    
+    if (closePreviewBtn) closePreviewBtn.addEventListener('click', closePreviewModal);
+    if (previewModal) previewModal.addEventListener('click', (e) => { if (e.target === previewModal) closePreviewModal(); });
+
+    // Access Denied Modal
+    const deniedModal = document.getElementById('accessDeniedModal');
+    const closeDeniedBtn = document.getElementById('closeDeniedModalBtn');
+    const closeDeniedFooterBtn = document.getElementById('closeDeniedModalFooterBtn');
+
+    function showAccessDenied() {
+        if (deniedModal) deniedModal.classList.add('active');
+    }
+    
+    function closeDeniedModal() {
+        if (deniedModal) deniedModal.classList.remove('active');
+    }
+    
+    if (closeDeniedBtn) closeDeniedBtn.addEventListener('click', closeDeniedModal);
+    if (closeDeniedFooterBtn) closeDeniedFooterBtn.addEventListener('click', closeDeniedModal);
+    if (deniedModal) deniedModal.addEventListener('click', (e) => { if (e.target === deniedModal) closeDeniedModal(); });
+
+    // Preview buttons
+    document.querySelectorAll('.preview-btn, .action-btn.preview').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const url = btn.getAttribute('data-url');
+            const name = btn.getAttribute('data-name');
+            
+            if (!url || url === 'undefined') {
+                console.error('Preview button missing data-url', btn);
+                alert('Cannot preview this file. The file URL is missing.');
+                return;
+            }
+            
+            openPreview(url, name);
+        });
+    });
+
+    // Download buttons - handle with fetch and show modal on permission denied
+    document.querySelectorAll('.action-btn.download').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const url = btn.getAttribute('data-url');
+            const fileName = btn.getAttribute('data-name');
+            
+            if (!url || url === 'undefined') {
+                console.error('Download button missing data-url', btn);
+                alert('Cannot download this file. The file URL is missing.');
+                return;
+            }
+            
+            // Show loading indicator
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(url);
+                
+                if (response.status === 403) {
+                    // Show access denied modal
+                    showAccessDenied();
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                // Successful download
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(blobUrl);
+            } catch (err) {
+                console.error('Download error:', err);
+                alert('Failed to download file. Please try again.');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        });
+    });
+</script>
+{% endblock %}

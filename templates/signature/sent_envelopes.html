@@ -1,0 +1,572 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sent Envelopes{% endblock %}
+
+{% block content %}
+<style>
+  /* Sent Envelopes Page Styles */
+  .sent-header {
+    margin-bottom: 2rem;
+  }
+  
+  .sent-header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+  
+  .sent-header p {
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+  
+  /* Card Styles */
+  .sent-card {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .sent-card .card-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.5rem;
+  }
+  
+  .sent-card .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .sent-card .card-header h5 i {
+    color: #3b82f6;
+  }
+  
+  .sent-card .card-body {
+    padding: 1.5rem;
+  }
+  
+  /* Table Styles */
+  .sent-table {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+  
+  .sent-table thead th {
+    background: #f8fafc;
+    padding: 0.875rem 1rem;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .sent-table tbody td {
+    padding: 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .sent-table tbody tr {
+    transition: all 0.2s ease;
+  }
+  
+  .sent-table tbody tr:hover {
+    background: #f8fafc;
+    transform: translateX(2px);
+  }
+  
+  /* Document Title */
+  .document-title-sent {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.85rem;
+  }
+  
+  .document-message-sent {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+    display: block;
+  }
+  
+  /* Status Badges */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    width: fit-content;
+  }
+  
+  .status-badge.completed {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge.sent {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  
+  .status-badge.in_progress {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .status-badge.expired {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .status-badge.draft {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  
+  /* Recipients List */
+  .recipients-list {
+    max-width: 250px;
+  }
+  
+  .recipient-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    font-size: 0.75rem;
+    border-bottom: 1px dashed #e2e8f0;
+  }
+  
+  .recipient-item:last-child {
+    border-bottom: none;
+  }
+  
+  .recipient-name {
+    font-weight: 500;
+    color: #334155;
+  }
+  
+  .recipient-role {
+    font-size: 0.65rem;
+    color: #94a3b8;
+  }
+  
+  .recipient-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+  }
+  
+  .recipient-status.signed {
+    color: #10b981;
+  }
+  
+  .recipient-status.pending {
+    color: #f59e0b;
+  }
+  
+  /* Date Styles */
+  .sent-date {
+    font-size: 0.75rem;
+    color: #475569;
+    white-space: nowrap;
+  }
+  
+  .sent-time {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    display: block;
+  }
+  
+  /* Progress Indicator */
+  .progress-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  
+  .progress-bar-custom {
+    flex: 1;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+  
+  .progress-text {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #475569;
+  }
+  
+  /* Action Buttons */
+  .btn-view-details {
+    background: #3b82f6;
+    border: none;
+    color: white;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    text-decoration: none;
+  }
+  
+  .btn-view-details:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    color: white;
+    text-decoration: none;
+  }
+  
+  /* Empty State */
+  .empty-state-sent {
+    text-align: center;
+    padding: 3rem 2rem;
+  }
+  
+  .empty-state-sent i {
+    font-size: 4rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+  
+  .empty-state-sent h4 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+  
+  .empty-state-sent p {
+    color: #94a3b8;
+    font-size: 0.875rem;
+  }
+  
+  /* Animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .sent-card {
+    animation: fadeInUp 0.4s ease-out;
+  }
+  
+  /* Filter Bar */
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .filter-btn {
+    padding: 0.375rem 1rem;
+    font-size: 0.75rem;
+    border-radius: 2rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .filter-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+  
+  .filter-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sent-card .card-body {
+      padding: 1rem;
+    }
+    
+    .sent-table thead th {
+      font-size: 0.65rem;
+      padding: 0.5rem;
+    }
+    
+    .sent-table tbody td {
+      padding: 0.75rem 0.5rem;
+    }
+    
+    .recipients-list {
+      max-width: 200px;
+    }
+    
+    .recipient-item {
+      font-size: 0.7rem;
+    }
+  }
+</style>
+
+<div class="container-fluid">
+  <!-- Header -->
+  <div class="sent-header">
+    <h1>
+      <i class="fas fa-paper-plane"></i> Sent Envelopes
+    </h1>
+    <p>Track and manage all your signature requests</p>
+  </div>
+
+  <div class="row mt-3">
+    <div class="col-12">
+      <div class="sent-card">
+        <div class="card-header">
+          <h5>
+            <i class="fas fa-envelope"></i>
+            Envelopes
+            <span class="badge" style="background: #3b82f6; color: white; padding: 0.25rem 0.6rem; border-radius: 2rem;">
+              {{ envelopes|length }} total
+            </span>
+          </h5>
+        </div>
+        <div class="card-body">
+          {% if envelopes %}
+            <!-- Filter Buttons -->
+            <div class="filter-bar">
+              <button class="filter-btn active" onclick="filterEnvelopes('all')">
+                <i class="fas fa-list"></i> All
+              </button>
+              <button class="filter-btn" onclick="filterEnvelopes('sent')">
+                <i class="fas fa-paper-plane"></i> Sent
+              </button>
+              <button class="filter-btn" onclick="filterEnvelopes('in_progress')">
+                <i class="fas fa-clock"></i> In Progress
+              </button>
+              <button class="filter-btn" onclick="filterEnvelopes('completed')">
+                <i class="fas fa-check-circle"></i> Completed
+              </button>
+              <button class="filter-btn" onclick="filterEnvelopes('expired')">
+                <i class="fas fa-times-circle"></i> Expired
+              </button>
+            </div>
+            
+            <div class="table-responsive">
+              <table class="sent-table" id="envelopesTable">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>Status</th>
+                    <th>Recipients</th>
+                    <th>Sent Date</th>
+                    <th>Progress</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for envelope in envelopes %}
+                    {% with total=envelope.recipients.count signed=envelope.recipients.signed.count %}
+                    <tr data-status="{{ envelope.status }}">
+                      <td>
+                        <div class="document-title-sent">
+                          <i class="fas fa-file-pdf" style="color: #ef4444; margin-right: 0.5rem;"></i>
+                          {{ envelope.title }}
+                        </div>
+                        {% if envelope.message %}
+                          <small class="document-message-sent">
+                            <i class="fas fa-comment"></i> {{ envelope.message|truncatechars:50 }}
+                          </small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <span class="status-badge {{ envelope.status }}">
+                          <i class="fas 
+                            {% if envelope.status == 'completed' %}fa-check-circle
+                            {% elif envelope.status == 'sent' %}fa-paper-plane
+                            {% elif envelope.status == 'in_progress' %}fa-clock
+                            {% elif envelope.status == 'expired' %}fa-times-circle
+                            {% else %}fa-question-circle{% endif %}">
+                          </i>
+                          {{ envelope.get_status_display }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="recipients-list">
+                          {% for recipient in envelope.recipients.all %}
+                            <div class="recipient-item">
+                              <div>
+                                <span class="recipient-name">{{ recipient.full_name }}</span>
+                                <span class="recipient-role">({{ recipient.get_role_display }})</span>
+                              </div>
+                              <div class="recipient-status {{ recipient.status }}">
+                                {% if recipient.status == 'signed' %}
+                                  <i class="fas fa-check-circle"></i>
+                                  <span>Signed</span>
+                                {% elif recipient.status == 'pending' %}
+                                  <i class="fas fa-clock"></i>
+                                  <span>Pending</span>
+                                {% elif recipient.status == 'declined' %}
+                                  <i class="fas fa-times-circle"></i>
+                                  <span>Declined</span>
+                                {% endif %}
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                       </td>
+                      <td>
+                        <div class="sent-date">
+                          <i class="fas fa-calendar-alt" style="margin-right: 0.375rem; font-size: 0.7rem;"></i>
+                          {{ envelope.sent_at|date:"M d, Y"|default:"-" }}
+                          <span class="sent-time">{{ envelope.sent_at|date:"H:i"|default:"" }}</span>
+                        </div>
+                       </td>
+                      <td>
+                        <div>
+                          <div class="progress-indicator">
+                            <div class="progress-bar-custom">
+                              <div class="progress-fill" style="width: {% widthratio signed total 100 %}%"></div>
+                            </div>
+                            <div class="progress-text">{{ signed }}/{{ total }}</div>
+                          </div>
+                          <div class="text-muted" style="font-size: 0.65rem; margin-top: 0.25rem;">
+                            {{ signed }} of {{ total }} signed
+                          </div>
+                        </div>
+                       </td>
+                      <td>
+                        <a href="{% url 'archive:envelope_detail' envelope.id %}" class="btn-view-details">
+                          <i class="fas fa-eye"></i> View Details
+                        </a>
+                       </td>
+                     </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Summary Stats -->
+            <div class="row mt-4 pt-3 border-top">
+              <div class="col-md-8">
+                <div class="d-flex gap-3 flex-wrap">
+                  <div>
+                    <span class="badge" style="background: #dcfce7; color: #166534; padding: 0.375rem 0.75rem;">
+                      <i class="fas fa-check-circle"></i> Completed: {{ envelopes|length|default:0 }}
+                    </span>
+                  </div>
+                  <div>
+                    <span class="badge" style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem;">
+                      <i class="fas fa-clock"></i> In Progress: {{ envelopes|length|default:0 }}
+                    </span>
+                  </div>
+                  <div>
+                    <span class="badge" style="background: #fee2e2; color: #991b1b; padding: 0.375rem 0.75rem;">
+                      <i class="fas fa-times-circle"></i> Expired: {{ envelopes|length|default:0 }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 text-end">
+                <small class="text-muted">
+                  <i class="fas fa-chart-line"></i> Overall completion rate: 
+                  {% with total_completed=0 %}
+                    {% for envelope in envelopes %}
+                      {% if envelope.status == 'completed' %}
+                        {% with total_completed=total_completed|add:1 %}
+                        {% endwith %}
+                      {% endif %}
+                    {% endfor %}
+                    {% widthratio total_completed envelopes|length 100 %}%
+                  {% endwith %}
+                </small>
+              </div>
+            </div>
+            
+          {% else %}
+            <div class="empty-state-sent">
+              <i class="fas fa-inbox"></i>
+              <h4>No Sent Envelopes</h4>
+              <p>You haven't sent any signature requests yet.</p>
+              <a href="{% url 'archive:signature_dashboard' %}" class="btn btn-primary mt-3">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Quick Tips -->
+  {% if envelopes %}
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="alert alert-info" style="background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 0.75rem; font-size: 0.8rem;">
+        <i class="fas fa-lightbulb"></i>
+        <strong>Quick Tips:</strong>
+        <ul class="mb-0 mt-2" style="padding-left: 1.25rem;">
+          <li>Use the filter buttons above to sort envelopes by status</li>
+          <li>The progress bar shows how many recipients have signed</li>
+          <li>Click "View Details" to see complete envelope information</li>
+          <li>Expired envelopes can no longer be signed by recipients</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function filterEnvelopes(status) {
+  // Update active button
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  
+  // Filter table rows
+  const rows = document.querySelectorAll('#envelopesTable tbody tr');
+  rows.forEach(row => {
+    if (status === 'all' || row.dataset.status === status) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

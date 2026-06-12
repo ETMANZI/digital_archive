@@ -1,0 +1,371 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Collections – Loan Archive{% endblock %}
+
+{% block content %}
+<div class="collections-container">
+    <div class="page-header">
+        <h1><i class="fas fa-folder-open"></i> Collections</h1>
+        <!-- <button id="showCreateFormBtn" class="btn-create"><i class="fas fa-plus"></i> New Collection</button> -->
+        {% if user.is_archive_manager or user.is_superuser or user.is_contributor %}
+            <button id="showCreateFormBtn" class="btn-create"><i class="fas fa-plus"></i> New Collection</button>
+        {% endif %}
+    </div>
+
+    <!-- Form to create a new collection (hidden by default) -->
+    <div id="createCollectionForm" style="display: none;" class="form-card">
+        <h3>Create New Collection</h3>
+        <form method="post" id="createCollectionFormElement">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="{{ form.name.id_for_label }}">Name *</label>
+                {{ form.name }}
+                {{ form.name.errors }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.description.id_for_label }}">Description</label>
+                {{ form.description }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.access_policy.id_for_label }}">Access Policy</label>
+                {{ form.access_policy }}
+                <small class="help-text">Who can view this collection?</small>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="cancelFormBtn" class="btn-secondary">Cancel</button>
+                <button type="submit" class="btn-primary">Save Collection</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- List of existing collections with edit/delete -->
+    <div class="collections-grid">
+        {% for collection in collections %}
+            <div class="collection-card" data-id="{{ collection.id }}">
+                <div class="collection-header">
+                    <h3>{{ collection.name }}</h3>
+                    <span class="access-badge access-{{ collection.access_policy }}">
+                        {{ collection.get_access_policy_display }}
+                    </span>
+                </div>
+                <p class="collection-desc">{{ collection.description|default:"No description" }}</p>
+                <div class="collection-meta">
+                    <span><i class="fas fa-user"></i> Owner: {{ collection.owner.username }}</span>
+                    <span><i class="fas fa-calendar-alt"></i> Created: {{ collection.created_at|date:"Y-m-d" }}</span>
+                </div>
+                <div class="collection-stats">
+                    <i class="fas fa-file-alt"></i> {{ collection.items.count }} items
+                </div>
+                {% if user == collection.owner or user.is_archive_manager or user.is_superuser %}
+                <div class="collection-actions">
+                    <button class="edit-collection-btn" data-id="{{ collection.id }}" data-name="{{ collection.name }}" data-description="{{ collection.description|default:'' }}" data-access="{{ collection.access_policy }}"><i class="fas fa-edit"></i> Edit</button>
+                    <button class="delete-collection-btn" data-id="{{ collection.id }}" data-name="{{ collection.name }}"><i class="fas fa-trash-alt"></i> Delete</button>
+                </div>
+                {% endif %}
+            </div>
+        {% empty %}
+            <div class="empty-state">
+                <i class="fas fa-folder-open fa-3x"></i>
+                <p>No collections yet. Create your first collection!</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Edit Collection Modal -->
+<div id="editCollectionModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 550px;">
+        <h3><i class="fas fa-edit"></i> Edit Collection</h3>
+        <form id="editCollectionForm" method="post">
+            {% csrf_token %}
+            <input type="hidden" id="editCollectionId" name="collection_id">
+            <div class="form-group">
+                <label for="editName">Name *</label>
+                <input type="text" id="editName" name="name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="editDescription">Description</label>
+                <textarea id="editDescription" name="description" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="editAccessPolicy">Access Policy</label>
+                <select id="editAccessPolicy" name="access_policy" class="form-control">
+                    <option value="1">Private</option>
+                    <option value="2">Department</option>
+                    <option value="3">Authenticated Users</option>
+                    <option value="4">Public</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="closeEditModalBtn" class="btn-secondary">Cancel</button>
+                <button type="submit" class="btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteCollectionModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 400px;">
+        <h3><i class="fas fa-trash-alt"></i> Delete Collection</h3>
+        <p>Are you sure you want to delete the collection <strong id="deleteCollectionName"></strong>?<br>
+        <span style="color: #dc2626; font-size: 0.8rem;">This will also delete all items inside this collection!</span></p>
+        <form id="deleteCollectionForm" method="post">
+            {% csrf_token %}
+            <input type="hidden" id="deleteCollectionId" name="collection_id">
+            <div class="modal-actions">
+                <button type="button" id="closeDeleteModalBtn" class="btn-secondary">Cancel</button>
+                <button type="submit" class="btn-delete">Yes, Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Additional styles for actions and modals */
+    .collection-actions {
+        margin-top: 0.8rem;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        border-top: 1px solid #eef2ff;
+        padding-top: 0.8rem;
+    }
+    .edit-collection-btn, .delete-collection-btn {
+        background: none;
+        border: none;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 1rem;
+        cursor: pointer;
+        transition: 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .edit-collection-btn {
+        background: #eef2ff;
+        color: #1e293b;
+    }
+    .edit-collection-btn:hover {
+        background: #e0e7ff;
+    }
+    .delete-collection-btn {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .delete-collection-btn:hover {
+        background: #fecaca;
+    }
+    .btn-delete {
+        background: #dc2626;
+        color: white;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        font-family: inherit;
+    }
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(3px);
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1.2rem;
+        padding: 1.5rem;
+        width: 90%;
+        max-width: 550px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 35px rgba(0,0,0,0.2);
+    }
+    .modal-card h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        margin-top: 1.5rem;
+    }
+    /* keep existing styles */
+    .collections-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .btn-create { background: #1e293b; color: white; border: none; padding: 0.5rem 1.2rem; border-radius: 2rem; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+    .form-card { background: white; border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+    .btn-primary, .btn-secondary { padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; }
+    .btn-primary { background: #1e293b; color: white; }
+    .btn-secondary { background: #e2e8f0; color: #1e293b; }
+    .collections-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+    .collection-card { background: white; border-radius: 1rem; padding: 1.2rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #eef2ff; transition: 0.2s; }
+    .collection-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.05); }
+    .collection-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .access-badge { font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 20px; }
+    .access-1 { background: #fee2e2; color: #991b1b; }
+    .access-2 { background: #fff3e3; color: #b45309; }
+    .access-3 { background: #e0f2fe; color: #0369a1; }
+    .access-4 { background: #dcfce7; color: #166534; }
+    .collection-desc { color: #4b5563; font-size: 0.85rem; margin: 0.5rem 0; }
+    .collection-meta { font-size: 0.7rem; color: #6c757d; display: flex; gap: 1rem; margin-top: 0.5rem; }
+    .collection-stats { margin-top: 0.5rem; font-size: 0.8rem; font-weight: 500; }
+    .empty-state { text-align: center; padding: 3rem; background: #f8fafc; border-radius: 1rem; }
+</style>
+
+<script>
+    // Helper: get CSRF token from cookie
+    function getCsrfToken() {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, 'app1_csrftoken'.length + 1) === ('app1_csrftoken=')) {
+                    cookieValue = decodeURIComponent(cookie.substring('app1_csrftoken'.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Show/hide create form
+    const showBtn = document.getElementById('showCreateFormBtn');
+    const formDiv = document.getElementById('createCollectionForm');
+    const cancelBtn = document.getElementById('cancelFormBtn');
+    if (showBtn && formDiv && cancelBtn) {
+        showBtn.addEventListener('click', () => {
+            formDiv.style.display = 'block';
+            showBtn.style.display = 'none';
+        });
+        cancelBtn.addEventListener('click', () => {
+            formDiv.style.display = 'none';
+            showBtn.style.display = 'inline-flex';
+        });
+    }
+
+    // Edit modal logic
+    const editModal = document.getElementById('editCollectionModal');
+    const editId = document.getElementById('editCollectionId');
+    const editName = document.getElementById('editName');
+    const editDesc = document.getElementById('editDescription');
+    const editAccess = document.getElementById('editAccessPolicy');
+    const editForm = document.getElementById('editCollectionForm');
+    const closeEditBtn = document.getElementById('closeEditModalBtn');
+
+    document.querySelectorAll('.edit-collection-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            const description = btn.dataset.description;
+            const access = btn.dataset.access;
+            editId.value = id;
+            editName.value = name;
+            editDesc.value = description;
+            editAccess.value = access;
+            editModal.classList.add('active');
+        });
+    });
+
+    if (closeEditBtn) {
+        closeEditBtn.addEventListener('click', () => editModal.classList.remove('active'));
+    }
+    editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) editModal.classList.remove('active');
+    });
+
+    // Handle edit form submission via AJAX (or regular POST)
+    editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const collectionId = editId.value;
+        const formData = new FormData(editForm);
+        formData.append('_method', 'PUT');  // if your backend uses method override
+        try {
+            const res = await fetch(`/collections/${collectionId}/edit/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+                body: formData
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.text();
+                alert('Error updating collection: ' + err);
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+        }
+    });
+
+    // Delete modal logic
+    const deleteModal = document.getElementById('deleteCollectionModal');
+    const deleteId = document.getElementById('deleteCollectionId');
+    const deleteNameSpan = document.getElementById('deleteCollectionName');
+    const deleteForm = document.getElementById('deleteCollectionForm');
+    const closeDeleteBtn = document.getElementById('closeDeleteModalBtn');
+
+    document.querySelectorAll('.delete-collection-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            deleteId.value = id;
+            deleteNameSpan.textContent = name;
+            deleteModal.classList.add('active');
+        });
+    });
+
+    if (closeDeleteBtn) {
+        closeDeleteBtn.addEventListener('click', () => deleteModal.classList.remove('active'));
+    }
+    deleteModal.addEventListener('click', (e) => {
+        if (e.target === deleteModal) deleteModal.classList.remove('active');
+    });
+
+    deleteForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const collectionId = deleteId.value;
+        const formData = new FormData();
+        formData.append('_method', 'DELETE');
+        try {
+            const res = await fetch(`/collections/${collectionId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+                body: formData
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.text();
+                alert('Error deleting collection: ' + err);
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+        }
+    });
+</script>
+
+{% endblock %}

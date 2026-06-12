@@ -1,0 +1,893 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Envelope Details{% endblock %}
+
+{% block content %}
+<style>
+  /* Envelope Details Page Styles */
+  .envelope-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  
+  .envelope-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #1e293b, #3b82f6);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  
+  .envelope-header .status-badge-lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .status-badge-lg.completed {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge-lg.sent {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  
+  .status-badge-lg.in_progress {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .status-badge-lg.expired {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .status-badge-lg.declined {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .status-badge-lg.draft {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  /* Cards */
+  .info-card {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    margin-bottom: 1.5rem;
+  }
+  
+  .info-card .card-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+  }
+  
+  .info-card .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .info-card .card-header i {
+    color: #3b82f6;
+  }
+  
+  .info-card .card-body {
+    padding: 1.25rem;
+  }
+  
+  /* Message Box */
+  .message-box {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 3px solid #3b82f6;
+  }
+  
+  .message-box p {
+    margin: 0;
+    color: #475569;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  
+  /* Timeline */
+  .timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .timeline li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .timeline li:last-child {
+    border-bottom: none;
+  }
+  
+  .timeline-icon {
+    width: 32px;
+    height: 32px;
+    background: #e0f2fe;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0284c7;
+  }
+  
+  .timeline-content {
+    flex: 1;
+  }
+  
+  .timeline-title {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.85rem;
+  }
+  
+  .timeline-date {
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+  
+  /* Compact Recipient List */
+  .recipients-list {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  
+  .recipient-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s;
+  }
+  
+  .recipient-row:hover {
+    background: #f8fafc;
+  }
+  
+  .recipient-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  
+  .recipient-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .recipient-name {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .recipient-email {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .recipient-role {
+    font-size: 0.6rem;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 0.1rem 0.4rem;
+    border-radius: 1rem;
+    display: inline-block;
+    width: fit-content;
+  }
+  
+  .recipient-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+  
+  .status-badge-sm {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  .status-badge-sm.signed {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge-sm.pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .status-badge-sm.declined {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .btn-sign-sm {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: none;
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.65rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  
+  .btn-sign-sm:hover {
+    background: #3b82f6;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .btn-remove-icon-sm {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+  
+  .btn-remove-icon-sm:hover {
+    background: #fee2e2;
+    color: #dc2626;
+  }
+  
+  .signed-date-sm {
+    font-size: 0.6rem;
+    color: #64748b;
+    margin-left: 0.25rem;
+  }
+  
+  /* Document Buttons */
+  .btn-document {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    margin-right: 0.5rem;
+  }
+  
+  .btn-document.btn-info {
+    background: #e0f2fe;
+    color: #0284c7;
+  }
+  
+  .btn-document.btn-info:hover {
+    background: #bae6fd;
+    transform: translateY(-1px);
+  }
+  
+  .btn-document.btn-success {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .btn-document.btn-success:hover {
+    background: #bbf7d0;
+    transform: translateY(-1px);
+  }
+  
+  /* Action Buttons - Compact */
+  .btn-add {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border: none;
+    color: white;
+    padding: 0.4rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    min-width: 120px;
+  }
+  
+  .btn-add:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  }
+  
+  .btn-add:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .btn-void {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+    color: white;
+    padding: 0.4rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    min-width: 120px;
+  }
+  
+  .btn-void:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+  }
+  
+  .action-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  
+  /* Search input styling */
+  .search-wrapper {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+  
+  .search-wrapper i {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.8rem;
+    pointer-events: none;
+  }
+  
+  .form-search {
+    width: 100%;
+    padding: 0.6rem 0.75rem 0.6rem 2rem;
+    font-size: 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: white;
+    transition: all 0.2s;
+  }
+  
+  .form-search:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  }
+  
+  .form-search::placeholder {
+    color: #cbd5e1;
+  }
+  
+  .search-results {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
+    background: white;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  
+  .search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .search-result-item:last-child {
+    border-bottom: none;
+  }
+  
+  .search-result-item:hover {
+    background: #f1f5f9;
+  }
+  
+  .search-result-icon {
+    width: 32px;
+    height: 32px;
+    background: #e0f2fe;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3b82f6;
+    font-size: 0.8rem;
+  }
+  
+  .search-result-info {
+    flex: 1;
+  }
+  
+  .search-result-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1e293b;
+  }
+  
+  .search-result-email {
+    font-size: 0.7rem;
+    color: #64748b;
+  }
+  
+  .search-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #64748b;
+    font-size: 0.8rem;
+  }
+  
+  .search-loading i {
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .decline-reason {
+    margin-top: 0.25rem;
+    margin-left: 3rem;
+    padding: 0.3rem 0.5rem;
+    background: #fee2e2;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    color: #991b1b;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .envelope-header h1 {
+      font-size: 1.25rem;
+    }
+    
+    .info-card .card-body {
+      padding: 1rem;
+    }
+    
+    .recipient-row {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    .recipient-info {
+      width: 100%;
+    }
+    
+    .recipient-actions {
+      justify-content: flex-end;
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="container-fluid">
+  <!-- Header -->
+  <div class="envelope-header">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1><i class="fas fa-envelope"></i> {{ envelope.title }}</h1>
+        <div class="mt-2">
+          <span class="status-badge-lg {{ envelope.status }}">
+            <i class="fas 
+              {% if envelope.status == 'completed' %}fa-check-circle
+              {% elif envelope.status == 'sent' %}fa-paper-plane
+              {% elif envelope.status == 'in_progress' %}fa-clock
+              {% elif envelope.status == 'expired' %}fa-times-circle
+              {% elif envelope.status == 'declined' %}fa-times-circle
+              {% else %}fa-pencil-alt{% endif %}">
+            </i>
+            {{ envelope.get_status_display }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Left Column - Document Info & Timeline -->
+    <div class="col-lg-8">
+      <!-- Document Information Card -->
+      <div class="info-card">
+        <div class="card-header">
+          <h5><i class="fas fa-file-alt"></i> Document Information</h5>
+        </div>
+        <div class="card-body">
+          {% if envelope.message %}
+          <div class="message-box">
+            <strong><i class="fas fa-comment"></i> Message to Signers:</strong>
+            <p class="mt-2">{{ envelope.message }}</p>
+          </div>
+          {% endif %}
+          <div class="d-flex flex-wrap gap-2">
+            {% if envelope.get_document %}
+              <a href="{% url 'archive:serve_file' envelope.get_document.stored_path %}" target="_blank" class="btn-document btn-info">
+                <i class="fas fa-eye"></i> View Original Document
+              </a>
+            {% endif %}
+            {% if envelope.signed_document %}
+              <a href="{% url 'archive:serve_file' envelope.signed_document.name %}" class="btn-document btn-success">
+                <i class="fas fa-download"></i> Download Signed Document
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Timeline Card -->
+      <div class="info-card">
+        <div class="card-header">
+          <h5><i class="fas fa-history"></i> Timeline</h5>
+        </div>
+        <div class="card-body">
+          <ul class="timeline">
+            <li>
+              <div class="timeline-icon"><i class="fas fa-calendar-alt"></i></div>
+              <div class="timeline-content">
+                <div class="timeline-title">Created</div>
+                <div class="timeline-date">{{ envelope.created_at|date:"Y-m-d H:i" }}</div>
+              </div>
+            </li>
+            <li>
+              <div class="timeline-icon"><i class="fas fa-paper-plane"></i></div>
+              <div class="timeline-content">
+                <div class="timeline-title">Sent</div>
+                <div class="timeline-date">{{ envelope.sent_at|date:"Y-m-d H:i"|default:"Not sent yet" }}</div>
+              </div>
+            </li>
+            <li>
+              <div class="timeline-icon"><i class="fas fa-check-circle"></i></div>
+              <div class="timeline-content">
+                <div class="timeline-title">Completed</div>
+                <div class="timeline-date">{{ envelope.completed_at|date:"Y-m-d H:i"|default:"Not completed" }}</div>
+              </div>
+            </li>
+            <li>
+              <div class="timeline-icon"><i class="fas fa-hourglass-half"></i></div>
+              <div class="timeline-content">
+                <div class="timeline-title">Expires</div>
+                <div class="timeline-date">{{ envelope.expires_at|date:"Y-m-d"|default:"No expiry" }}</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right Column - Recipients & Actions -->
+    <div class="col-lg-4">
+      <!-- Recipients Card -->
+      <div class="info-card">
+        <div class="card-header">
+          <h5>
+            <i class="fas fa-users"></i> Recipients
+            <span class="badge" style="background: #e2e8f0; color: #475569; margin-left: 0.5rem;">
+              {{ recipients|length }}
+            </span>
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="recipients-list">
+            {% for recipient in recipients %}
+              <div class="recipient-row">
+                <div class="recipient-avatar">
+                  {{ recipient.full_name|first|upper }}
+                </div>
+                <div class="recipient-info">
+                  <div class="recipient-name" title="{{ recipient.full_name }}">{{ recipient.full_name }}</div>
+                  <div class="recipient-email" title="{{ recipient.email }}">{{ recipient.email }}</div>
+                  <span class="recipient-role">
+                    <i class="fas fa-tag"></i> {{ recipient.get_role_display }}
+                  </span>
+                </div>
+                <div class="recipient-actions">
+                  {% if recipient.status == 'signed' %}
+                    <span class="status-badge-sm signed">
+                      <i class="fas fa-check-circle"></i> Signed
+                    </span>
+                    <span class="signed-date-sm">{{ recipient.signed_at|date:"Y-m-d" }}</span>
+                  {% elif recipient.status == 'pending' %}
+                    <span class="status-badge-sm pending">
+                      <i class="fas fa-clock"></i> Pending
+                    </span>
+                  {% elif recipient.status == 'declined' %}
+                    <span class="status-badge-sm declined">
+                      <i class="fas fa-times-circle"></i> Declined
+                    </span>
+                  {% endif %}
+                  {% if recipient.status == 'pending' %}
+                    <a href="http://{{ request.get_host }}/sign/portal/{{ recipient.signing_token }}/" class="btn-sign-sm">
+                      <i class="fas fa-pen"></i> Sign
+                    </a>
+                  {% endif %}
+                  {% if can_manage_recipients and recipient.status == 'pending' %}
+                    <button class="btn-remove-icon-sm" data-url="{% url 'archive:remove_recipient' recipient.id %}" data-name="{{ recipient.full_name }}" title="Remove recipient">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  {% endif %}
+                </div>
+              </div>
+              {% if recipient.status == 'declined' and recipient.decline_reason %}
+                <div class="decline-reason">
+                  <i class="fas fa-exclamation-triangle"></i> <strong>Reason:</strong> {{ recipient.decline_reason }}
+                </div>
+              {% endif %}
+            {% empty %}
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-user-friends fa-2x mb-2"></i>
+                <p>No recipients added</p>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Add Recipient Card -->
+      {% if can_manage_recipients %}
+      <div class="info-card">
+        <div class="card-header">
+          <h5><i class="fas fa-user-plus"></i> Add Recipient</h5>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'archive:add_recipient_to_envelope' envelope.id %}" id="addRecipientForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" style="font-weight: 500; color: #1e293b; margin-bottom: 0.5rem;">
+                <i class="fas fa-search" style="font-size: 0.7rem; margin-right: 0.25rem;"></i> Search existing user
+              </label>
+              <div class="search-wrapper">
+                <i class="fas fa-user"></i>
+                <input type="text" id="userSearch" class="form-search" placeholder="Type name or email (min 2 chars)...">
+              </div>
+              <div id="searchResults" class="search-results d-none"></div>
+            </div>
+            <input type="hidden" name="user_id" id="selectedUserId">
+            <div class="action-buttons">
+              <button type="submit" class="btn-add" id="addBtn" disabled>
+                <i class="fas fa-plus-circle"></i> Add Selected Recipient
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Actions Card (Void) -->
+      {% if can_void %}
+        <div class="info-card">
+          <div class="card-body">
+            <div class="action-buttons">
+              <button class="btn-void" onclick="voidEnvelope()">
+                <i class="fas fa-ban"></i> Void Envelope
+              </button>
+              <p class="text-muted small mt-2 mb-0 text-center">
+                <i class="fas fa-info-circle"></i> Voiding will cancel this signature request
+              </p>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+function voidEnvelope() {
+  if (confirm('⚠️ Are you sure you want to void this envelope?\n\nThis action cannot be undone and will cancel all pending signature requests.')) {
+    fetch('{% url "archive:void_envelope" envelope.id %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason: prompt('Reason for voiding this envelope (optional):') || 'No reason provided' })
+    }).then(response => {
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert('Error voiding envelope. Please try again.');
+      }
+    }).catch(error => {
+      alert('Error: ' + error);
+    });
+  }
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// ---------- Add Recipient Search ----------
+const searchInput = document.getElementById('userSearch');
+const resultsDiv = document.getElementById('searchResults');
+const userIdField = document.getElementById('selectedUserId');
+const addBtn = document.getElementById('addBtn');
+
+if (searchInput) {
+  let debounceTimer;
+  searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const query = this.value.trim();
+    if (query.length < 2) {
+      resultsDiv.classList.add('d-none');
+      resultsDiv.innerHTML = '';
+      userIdField.value = '';
+      addBtn.disabled = true;
+      return;
+    }
+    resultsDiv.innerHTML = '<div class="search-loading"><i class="fas fa-spinner"></i> Searching...</div>';
+    resultsDiv.classList.remove('d-none');
+    
+    debounceTimer = setTimeout(() => {
+      fetch(`{% url 'archive:search_users' %}?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            resultsDiv.innerHTML = '<div class="p-2 text-danger text-center">Search failed. Please try again.</div>';
+            return;
+          }
+          if (data.length === 0) {
+            resultsDiv.innerHTML = '<div class="p-2 text-muted text-center">No users found</div>';
+            return;
+          }
+          resultsDiv.innerHTML = data.map(user => `
+            <div class="search-result-item" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}">
+              <div class="search-result-icon">
+                <i class="fas fa-user-circle"></i>
+              </div>
+              <div class="search-result-info">
+                <div class="search-result-name">${escapeHtml(user.name)}</div>
+                <div class="search-result-email">${escapeHtml(user.email)}</div>
+              </div>
+            </div>
+          `).join('');
+          document.querySelectorAll('.search-result-item').forEach(el => {
+            el.addEventListener('click', function() {
+              const id = this.dataset.id;
+              const name = this.dataset.name;
+              userIdField.value = id;
+              addBtn.disabled = false;
+              searchInput.value = name;
+              resultsDiv.classList.add('d-none');
+            });
+          });
+        })
+        .catch(err => {
+          console.error('Search error:', err);
+          resultsDiv.innerHTML = '<div class="p-2 text-danger text-center">Network error. Please try again.</div>';
+        });
+    }, 300);
+  });
+}
+
+// Remove Recipient
+document.querySelectorAll('.btn-remove-icon-sm').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    const url = this.dataset.url;
+    const name = this.dataset.name;
+    if (confirm(`Remove "${name}" from recipients? This action cannot be undone.`)) {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json'
+        }
+      }).then(response => {
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          alert('Error removing recipient.');
+        }
+      }).catch(err => alert('Error: ' + err));
+    }
+  });
+});
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1081 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Audit Logs | Digital Archive{% endblock %}
+
+{% block content %}
+<div class="audit-container">
+    <!-- Header Section -->
+    <div class="page-header">
+        <div class="header-left">
+            <div class="header-icon">
+                <i class="fas fa-history"></i>
+            </div>
+            <div>
+                <h1>Audit Logs</h1>
+                <p class="text-muted">Track all system activities, user actions, and permission changes</p>
+            </div>
+        </div>
+        <div class="header-stats">
+            <div class="stat-badge">
+                <i class="fas fa-database"></i>
+                <span>{{ page_obj.paginator.count }} total records</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div class="filters-panel">
+        <form method="get" class="filter-form">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label><i class="fas fa-user"></i> User (Actor)</label>
+                    <select name="user" class="filter-select">
+                        <option value="">All users</option>
+                        {% for u in users %}
+                            <option value="{{ u.id }}" {% if selected_user == u.id|stringformat:"s" %}selected{% endif %}>
+                                {{ u.username }} {% if u.department %}({{ u.department }}){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-tag"></i> Action</label>
+                    <select name="action" class="filter-select">
+                        <option value="">All actions</option>
+                        {% for act in actions %}
+                            <option value="{{ act }}" {% if selected_action == act %}selected{% endif %}>{{ act|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-hashtag"></i> Item ID</label>
+                    <input type="text" name="item" value="{{ selected_item|default:'' }}" placeholder="Enter ID..." class="filter-input">
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-calendar-alt"></i> Date From</label>
+                    <input type="date" name="date_from" value="{{ date_from|default:'' }}" class="filter-input">
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-calendar-alt"></i> Date To</label>
+                    <input type="date" name="date_to" value="{{ date_to|default:'' }}" class="filter-input">
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-search"></i> Apply
+                    </button>
+                    <a href="{% url 'archive:audit_logs' %}" class="btn-secondary">
+                        <i class="fas fa-redo-alt"></i> Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="logs-table-wrapper">
+        <table class="logs-table">
+            <thead>
+                <tr>
+                    <th class="col-timestamp"><i class="fas fa-clock"></i> Timestamp</th>
+                    <th class="col-user"><i class="fas fa-user-circle"></i> Actor</th>
+                    <th class="col-action"><i class="fas fa-bolt"></i> Action</th>
+                    <th class="col-item"><i class="fas fa-file-alt"></i> Target / Details</th>
+                    <th class="col-ip"><i class="fas fa-network-wired"></i> IP Address</th>
+                    <th class="col-changes"><i class="fas fa-code-branch"></i> Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in page_obj %}
+                <tr class="log-row">
+                    <td class="timestamp-cell">
+                        <span class="timestamp">{{ log.timestamp|date:"Y-m-d H:i:s" }}</span>
+                    </td>
+                    <td class="user-cell">
+                        <div class="user-info">
+                            <i class="fas fa-user-circle"></i>
+                            <span>{{ log.user.username|default:"Anonymous" }}</span>
+                        </div>
+                    </td>
+                    <td class="action-cell">
+                        <span class="action-badge action-{{ log.action|lower }}">
+                            <i class="fas 
+                                {% if log.action == 'CREATE' %}fa-plus-circle
+                                {% elif log.action == 'VIEW' %}fa-eye
+                                {% elif log.action == 'MODIFY' %}fa-edit
+                                {% elif log.action == 'DELETE' %}fa-trash-alt
+                                {% elif log.action == 'EXPORT' %}fa-download
+                                {% elif log.action == 'CHANGE_PERMISSION' %}fa-user-shield
+                                {% else %}fa-cog{% endif %}"></i>
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+<td class="archive-item-cell">
+    {% if log.archive_item %}
+        <!-- Action on a loan/document -->
+        {% if log.archive_item.document_type == 'loan' and log.archive_item.customer_id %}
+            <a href="{% url 'archive:customer_detail' customer_id=log.archive_item.customer_id %}#item-{{ log.archive_item.id }}" class="item-link">
+                <i class="fas fa-folder-open"></i> {{ log.archive_item.title|truncatechars:35 }}
+            </a>
+        {% else %}
+            <a href="{% url 'archive:document_detail' item_id=log.archive_item.id %}" class="item-link">
+                <i class="fas fa-file"></i> {{ log.archive_item.title|truncatechars:35 }}
+            </a>
+        {% endif %}
+        <div class="item-meta">
+            <span class="item-id">ID: {{ log.archive_item.id }} - {{ log.archive_item.customer_id }} - {{ log.archive_item.loan_id }}</span>
+        </div>
+    {% else %}
+        <!-- System actions (user management) -->
+        {% if log.action == 'CREATE' %}
+            <div class="target-user-info">
+                <i class="fas fa-user-plus"></i>
+                <strong>{{ log.new_value.username|default:"User" }}</strong>
+                {% if log.new_value.groups %}
+                    <span class="role-badge">{{ log.new_value.groups|join:", " }}</span>
+                {% endif %}
+            </div>
+        
+        {% elif log.action == 'MODIFY' %}
+            <div class="target-user-info">
+                <i class="fas fa-user-edit"></i>
+                <strong>{{ log.new_value.username|default:log.old_value.username|default:"User" }}</strong>
+            </div>
+            <!-- Display changes with old and new values -->
+            {% if log.new_value.changed_fields %}
+                <div class="changes-list">
+                    {% for field, new_value in log.new_value.changed_fields.items %}
+                        <div class="change-item">
+                            <span class="change-field">{{ field|title }}:</span>
+                            <span class="old-value"><i class="fas fa-arrow-left"></i> {% for f, v in log.old_value.changed_fields.items %}{% if f == field %}{{ v|default:"(empty)" }}{% endif %}{% endfor %}</span>
+                            <span class="new-value"><i class="fas fa-arrow-right"></i> {{ new_value|default:"(empty)" }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% elif log.new_value.changes %}
+                <div class="changes-list">
+                    {% for field, change in log.new_value.changes.items %}
+                        <div class="change-item">
+                            <span class="change-field">{{ field|title }}:</span>
+                            <span class="old-value"><i class="fas fa-arrow-left"></i> {{ change.old|default:"(empty)" }}</span>
+                            <span class="new-value"><i class="fas fa-arrow-right"></i> {{ change.new|default:"(empty)" }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        
+        {% elif log.action == 'CHANGE_PERMISSION' %}
+            <!-- TARGET USERNAME - WHO RECEIVED THE ROLE CHANGE -->
+            <div class="target-user-info">
+                <i class="fas fa-user-shield"></i>
+                <strong>
+                    {% if log.new_value.target_username %}
+                        {{ log.new_value.target_username }}
+                    {% elif log.old_value.target_username %}
+                        {{ log.old_value.target_username }}
+                    {% elif log.new_value.username %}
+                        {{ log.new_value.username }}
+                    {% elif log.old_value.username %}
+                        {{ log.old_value.username }}
+                    {% elif log.new_value.user %}
+                        {{ log.new_value.user }}
+                    {% elif log.old_value.user %}
+                        {{ log.old_value.user }}
+                    else %}
+                        User
+                    {% endif %}
+                </strong>
+            </div>
+            <div class="role-change-details">
+                {% if log.old_value.roles %}
+                    <div class="old-role">
+                        <i class="fas fa-arrow-left"></i> From: {{ log.old_value.roles|join:", " }}
+                    </div>
+                {% elif log.old_value.groups %}
+                    <div class="old-role">
+                        <i class="fas fa-arrow-left"></i> From: {{ log.old_value.groups|join:", " }}
+                    </div>
+                {% elif log.old_value.roles_display %}
+                    <div class="old-role">
+                        <i class="fas fa-arrow-left"></i> From: {{ log.old_value.roles_display }}
+                    </div>
+                {% else %}
+                    <div class="old-role">
+                        <i class="fas fa-arrow-left"></i> From: No role
+                    </div>
+                {% endif %}
+                
+                {% if log.new_value.roles %}
+                    <div class="new-role">
+                        <i class="fas fa-arrow-right"></i> To: {{ log.new_value.roles|join:", " }}
+                    </div>
+                {% elif log.new_value.groups %}
+                    <div class="new-role">
+                        <i class="fas fa-arrow-right"></i> To: {{ log.new_value.groups|join:", " }}
+                    </div>
+                {% elif log.new_value.roles_display %}
+                    <div class="new-role">
+                        <i class="fas fa-arrow-right"></i> To: {{ log.new_value.roles_display }}
+                    </div>
+                {% else %}
+                    <div class="new-role">
+                        <i class="fas fa-arrow-right"></i> To: No role
+                    </div>
+                {% endif %}
+            </div>
+        
+        {% else %}
+            <div class="system-action">
+                <i class="fas fa-cog"></i> {{ log.get_action_display }}
+            </div>
+        {% endif %}
+    {% endif %}
+</td>
+                    <td class="ip-cell">
+                        <code class="ip-address">{{ log.ip_address|default:"—" }}</code>
+                    </td>
+                    <td class="changes-cell">
+                        {% if log.old_value or log.new_value %}
+                            <button class="view-changes-btn" data-old='{{ log.old_value|default:"{}"|escapejs }}' data-new='{{ log.new_value|default:"{}"|escapejs }}'>
+                                <i class="fas fa-code-branch"></i> View JSON
+                            </button>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox fa-3x"></i>
+                            <p>No audit logs found</p>
+                            <span class="text-muted">Try adjusting your filters</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        <div class="pagination-info">
+            Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+        </div>
+        <div class="pagination-links">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}" class="page-link">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </a>
+            {% endif %}
+            <span class="page-current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}" class="page-link">
+                    Next <i class="fas fa-chevron-right"></i>
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal for viewing JSON changes -->
+<div id="changesModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-code"></i> Raw JSON Changes</h3>
+            <button class="close-modal" id="closeChangesModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="changes-grid">
+                <div class="old-values">
+                    <h4><i class="fas fa-history"></i> Before (Old Values)</h4>
+                    <pre id="oldValuesPre" class="json-pre">Loading...</pre>
+                </div>
+                <div class="new-values">
+                    <h4><i class="fas fa-save"></i> After (New Values)</h4>
+                    <pre id="newValuesPre" class="json-pre">Loading...</pre>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="closeChangesModalFooterBtn">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ========== MAIN CONTAINER ========== */
+    .audit-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    /* ========== HEADER ========== */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .header-icon {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .header-icon i {
+        font-size: 28px;
+        color: #3b82f6;
+    }
+    .page-header h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem 0;
+        color: #0f172a;
+    }
+    .text-muted {
+        color: #64748b;
+        margin: 0;
+        font-size: 0.85rem;
+    }
+    .header-stats {
+        background: #f8fafc;
+        border-radius: 2rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid #eef2ff;
+    }
+    .stat-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: #1e293b;
+    }
+    .stat-badge i {
+        color: #3b82f6;
+    }
+
+    /* ========== FILTERS ========== */
+    .filters-panel {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #eef2ff;
+    }
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 1rem;
+    }
+    .filter-group {
+        flex: 1;
+        min-width: 140px;
+    }
+    .filter-group label {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+        color: #475569;
+    }
+    .filter-group label i {
+        margin-right: 0.25rem;
+        font-size: 0.7rem;
+    }
+    .filter-select,
+    .filter-input {
+        width: 100%;
+        padding: 0.6rem 0.8rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+        background: white;
+    }
+    .filter-select:focus,
+    .filter-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .filter-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    /* ========== TABLE ========== */
+    .logs-table-wrapper {
+        background: white;
+        border-radius: 1rem;
+        border: 1px solid #eef2ff;
+        overflow-x: auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .logs-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    .logs-table th {
+        padding: 1rem;
+        background: #f8fafc;
+        font-weight: 600;
+        color: #475569;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .logs-table th i {
+        margin-right: 0.5rem;
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
+    .logs-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: top;
+    }
+    .log-row:hover {
+        background: #fefce8;
+    }
+    .log-row:last-child td {
+        border-bottom: none;
+    }
+
+    /* Column widths */
+    .col-timestamp { width: 160px; }
+    .col-user { width: 140px; }
+    .col-action { width: 130px; }
+    .col-item { width: 320px; }
+    .col-ip { width: 130px; }
+    .col-changes { width: 110px; }
+
+    /* Timestamp cell */
+    .timestamp {
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #1e293b;
+    }
+
+    /* User cell */
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .user-info i {
+        font-size: 1rem;
+        color: #64748b;
+    }
+    .user-info span {
+        font-weight: 500;
+    }
+
+    /* Action badge */
+    .action-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .action-create { background: #dcfce7; color: #166534; }
+    .action-view { background: #e0f2fe; color: #0369a1; }
+    .action-modify { background: #fff3e3; color: #b45309; }
+    .action-delete { background: #fee2e2; color: #991b1b; }
+    .action-export { background: #f3e8ff; color: #6b21a5; }
+    .action-change_permission { background: #fef9c3; color: #854d0e; }
+
+    /* Target user info */
+    .target-user-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+    }
+    .target-user-info i {
+        font-size: 0.8rem;
+        color: #3b82f6;
+    }
+    .target-user-info strong {
+        font-size: 0.85rem;
+        color: #0f172a;
+    }
+
+    /* Archive item cell */
+    .item-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 500;
+        color: #0f172a;
+        text-decoration: none;
+    }
+    .item-link:hover {
+        color: #3b82f6;
+        text-decoration: underline;
+    }
+    .item-meta {
+        margin-top: 0.25rem;
+    }
+    .item-id {
+        font-size: 0.65rem;
+        color: #94a3b8;
+        font-family: monospace;
+    }
+
+    /* IP address */
+    .ip-address {
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #475569;
+        background: #f8fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+    }
+
+    /* Changes button */
+    .view-changes-btn {
+        background: #eef2ff;
+        border: none;
+        padding: 0.3rem 0.8rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.7rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .view-changes-btn:hover {
+        background: #e0e7ff;
+        transform: scale(1.02);
+    }
+
+    /* Role badges */
+    .role-badge {
+        display: inline-block;
+        background: #eef2ff;
+        padding: 0.15rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.65rem;
+        font-weight: 500;
+        color: #1e40af;
+    }
+
+    /* Role change details */
+    .role-change-details {
+        margin-top: 0.3rem;
+ 
+    }
+    .old-role {
+        font-size: 0.65rem;
+        color: #dc2626;
+        background: #fef2f2;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        display: inline-block;
+        margin-bottom: 0.25rem;
+    }
+    .new-role {
+        font-size: 0.65rem;
+        color: #10b981;
+        background: #ecfdf5;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        display: inline-block;
+    }
+    .old-role i, .new-role i {
+        margin-right: 0.2rem;
+        font-size: 0.6rem;
+    }
+
+    .role-change-mini {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        margin-top: 0.25rem;
+    }
+    .old-role-mini {
+        font-size: 0.6rem;
+        color: #dc2626;
+    }
+    .new-role-mini {
+        font-size: 0.6rem;
+        color: #10b981;
+    }
+
+    /* Empty state */
+    .empty-row td {
+        padding: 3rem !important;
+    }
+    .empty-state {
+        text-align: center;
+    }
+    .empty-state i {
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+    .empty-state p {
+        margin: 0 0 0.25rem;
+        font-size: 1rem;
+        color: #64748b;
+    }
+
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .pagination-info {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    .pagination-links {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .page-link {
+        background: white;
+        border: 1px solid #e2e8f0;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .page-link:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .page-current {
+        font-size: 0.8rem;
+        color: #475569;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 1000px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: modalSlideIn 0.2s ease;
+    }
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.2rem 1.5rem;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    .modal-header h3 i {
+        margin-right: 0.5rem;
+        color: #3b82f6;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.8rem;
+        cursor: pointer;
+        color: #94a3b8;
+        line-height: 1;
+    }
+    .close-modal:hover {
+        color: #ef4444;
+    }
+    .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+    }
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #eef2ff;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .changes-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    .old-values h4, .new-values h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .old-values h4 i, .new-values h4 i {
+        margin-right: 0.4rem;
+    }
+    .json-pre {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.7rem;
+        font-family: monospace;
+        overflow-x: auto;
+        max-height: 400px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    /* Buttons */
+    .btn-primary, .btn-secondary {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: none;
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+    }
+    .btn-primary:hover {
+        background: #334155;
+    }
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #1e293b;
+    }
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .col-ip { display: none; }
+        .logs-table th:nth-child(5), .logs-table td:nth-child(5) { display: none; }
+    }
+    @media (max-width: 992px) {
+        .filter-row { flex-direction: column; align-items: stretch; }
+        .filter-actions { flex-direction: row; justify-content: flex-end; }
+    }
+    @media (max-width: 768px) {
+        .audit-container { padding: 1rem; }
+        .col-user, .col-timestamp { display: none; }
+        .pagination { flex-direction: column; text-align: center; }
+        .changes-grid { grid-template-columns: 1fr; }
+    }
+
+
+/* Changes list modal */
+.changes-list-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.user-header {
+    background: #eef2ff;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: #1e40af;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.change-item-modal {
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid #3b82f6;
+}
+
+.change-field {
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.change-old-value {
+    font-size: 0.75rem;
+    color: #dc2626;
+    background: #fef2f2;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    margin: 0.2rem 0;
+}
+
+.change-new-value {
+    font-size: 0.75rem;
+    color: #10b981;
+    background: #ecfdf5;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    margin: 0.2rem 0;
+}
+
+.old-label, .new-label {
+    font-weight: 600;
+    margin-right: 0.5rem;
+}
+
+
+
+
+/* Changes list for user edits */
+/* Compact single-line changes list */
+.changes-list {
+    margin-top: 0.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.change-item {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+    background: #f8fafc;
+    border-radius: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.change-field {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.6rem;
+}
+
+.old-value {
+    color: #dc2626;
+    background: #fef2f2;
+    padding: 0.05rem 0.2rem;
+    border-radius: 0.2rem;
+    font-size: 0.55rem;
+}
+
+.new-value {
+    color: #10b981;
+    background: #ecfdf5;
+    padding: 0.05rem 0.2rem;
+    border-radius: 0.2rem;
+    font-size: 0.55rem;
+}
+
+.old-value i, .new-value i {
+    font-size: 0.5rem;
+    margin-right: 0.1rem;
+}
+</style>
+
+<script>
+    // Modal for viewing JSON changes
+    const modal = document.getElementById('changesModal');
+    const closeBtn = document.getElementById('closeChangesModalBtn');
+    const closeFooterBtn = document.getElementById('closeChangesModalFooterBtn');
+    const oldPre = document.getElementById('oldValuesPre');
+    const newPre = document.getElementById('newValuesPre');
+
+    // function showChanges(oldVal, newVal) {
+    //     try {
+    //         let oldObj = typeof oldVal === 'string' ? JSON.parse(oldVal) : oldVal;
+    //         let newObj = typeof newVal === 'string' ? JSON.parse(newVal) : newVal;
+    //         oldPre.textContent = JSON.stringify(oldObj, null, 2);
+    //         newPre.textContent = JSON.stringify(newObj, null, 2);
+    //     } catch(e) {
+    //         oldPre.textContent = oldVal;
+    //         newPre.textContent = newVal;
+    //     }
+    //     modal.classList.add('active');
+    // }
+
+//////////////////////////////////
+function showChanges(oldVal, newVal) {
+    try {
+        let oldObj = typeof oldVal === 'string' ? JSON.parse(oldVal) : oldVal;
+        let newObj = typeof newVal === 'string' ? JSON.parse(newVal) : newObj;
+        
+        // Check if this is a user edit with changes object (old format)
+        if (oldObj && newObj && oldObj.changes && newObj.changes && oldObj.type === 'user_edit') {
+            let changesHtml = '<div class="changes-list-modal">';
+            
+            // Add username header
+            const username = newObj.username || oldObj.username || 'User';
+            changesHtml += `<div class="user-header"><i class="fas fa-user"></i> <strong>${escapeHtml(username)}</strong></div>`;
+            
+            // Display each changed field with old and new values from the changes object
+            for (const [field, change] of Object.entries(newObj.changes)) {
+                const oldValue = change.old || '(empty)';
+                const newValue = change.new || '(empty)';
+                
+                let fieldLabel = field.replace('_', ' ').toUpperCase();
+                
+                changesHtml += `
+                    <div class="change-item-modal">
+                        <div class="change-field">${escapeHtml(fieldLabel)}:</div>
+                        <div class="change-old-value">
+                            <span class="old-label">Old:</span> ${escapeHtml(oldValue)}
+                        </div>
+                        <div class="change-new-value">
+                            <span class="new-label">New:</span> ${escapeHtml(newValue)}
+                        </div>
+                    </div>
+                `;
+            }
+            changesHtml += '</div>';
+            oldPre.textContent = '';
+            newPre.innerHTML = changesHtml;
+        }
+        // Check if this is a user edit with changed_fields (new format)
+        else if (oldObj && newObj && oldObj.changed_fields && newObj.changed_fields) {
+            let changesHtml = '<div class="changes-list-modal">';
+            
+            const username = newObj.username || oldObj.username || 'User';
+            changesHtml += `<div class="user-header"><i class="fas fa-user"></i> <strong>${escapeHtml(username)}</strong></div>`;
+            
+            for (const [field, newValue] of Object.entries(newObj.changed_fields)) {
+                const oldValue = oldObj.changed_fields[field] || '(empty)';
+                let fieldLabel = field.replace('_', ' ').toUpperCase();
+                
+                changesHtml += `
+                    <div class="change-item-modal">
+                        <div class="change-field">${escapeHtml(fieldLabel)}:</div>
+                        <div class="change-old-value">
+                            <span class="old-label">Old:</span> ${escapeHtml(oldValue)}
+                        </div>
+                        <div class="change-new-value">
+                            <span class="new-label">New:</span> ${escapeHtml(newValue)}
+                        </div>
+                    </div>
+                `;
+            }
+            changesHtml += '</div>';
+            oldPre.textContent = '';
+            newPre.innerHTML = changesHtml;
+        }
+        // Check if this is role change format
+        else if (newObj && (newObj.to_role || newObj.from_role)) {
+            let roleHtml = `
+                <div class="role-change-modal">
+                    <div class="role-from">From: ${escapeHtml(newObj.from_role || oldObj?.from_role || 'No role')}</div>
+                    <div class="role-to">To: ${escapeHtml(newObj.to_role || 'No role')}</div>
+                    ${newObj.user ? `<div class="role-user">User: ${escapeHtml(newObj.user)}</div>` : ''}
+                </div>
+            `;
+            oldPre.textContent = '';
+            newPre.innerHTML = roleHtml;
+        }
+        // Check if this is file operation
+        else if (newObj && newObj.added_file) {
+            newPre.innerHTML = `<div class="file-change">📄 Added: ${escapeHtml(newObj.added_file)}<br>📦 Size: ${escapeHtml(newObj.size || 'Unknown')}</div>`;
+            oldPre.textContent = '';
+        }
+        else if (oldObj && oldObj.deleted_file) {
+            oldPre.innerHTML = `<div class="file-change">🗑️ Deleted: ${escapeHtml(oldObj.deleted_file)}</div>`;
+            newPre.textContent = '';
+        }
+        else {
+            // Fallback to JSON display
+            oldPre.textContent = JSON.stringify(oldObj, null, 2);
+            newPre.textContent = JSON.stringify(newObj, null, 2);
+        }
+        
+        modal.classList.add('active');
+    } catch(e) {
+        oldPre.textContent = oldVal;
+        newPre.textContent = newVal;
+        modal.classList.add('active');
+    }
+}
+//////////////////////////////////
+
+
+
+    document.querySelectorAll('.view-changes-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const oldVal = btn.dataset.old;
+            const newVal = btn.dataset.new;
+            showChanges(oldVal, newVal);
+        });
+    });
+
+    function closeModal() {
+        modal.classList.remove('active');
+    }
+    
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (closeFooterBtn) closeFooterBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+</script>
+{% endblock %}

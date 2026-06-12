@@ -1,0 +1,228 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ecobank Rwanda — Letterhead</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ecobank-blue: #006BB6;
+      --ecobank-cyan: #00AEEF;
+      --ecobank-dark: #004B84;
+      --accent-bar: #00AEEF;
+      --text-main: #1a1a1a;
+      --text-muted: #555;
+      --text-light: #888;
+      --page-bg: #f4f4f0;
+      --paper: #ffffff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--page-bg);
+      font-family: 'Source Sans 3', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .page {
+      background: var(--paper);
+      width: 794px;
+      min-height: 1123px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow:
+        0 4px 6px rgba(0,0,0,0.05),
+        0 20px 60px rgba(0,0,0,0.12),
+        0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* ─── HEADER ─────────────────────────────────────── */
+    .header {
+      position: relative;
+      height: 120px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .header-bar-top {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 14px;
+      background: linear-gradient(90deg, var(--ecobank-dark) 0%, var(--ecobank-blue) 50%, var(--ecobank-cyan) 100%);
+    }
+
+    .header-bar-accent {
+      position: absolute;
+      top: 14px; left: 0; right: 0;
+      height: 4px;
+      background: var(--ecobank-cyan);
+      opacity: 0.35;
+    }
+
+    .header-logo-area {
+      position: absolute;
+      top: 30px;
+      right: 50px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .logo-wordmark {
+      font-family: 'Merriweather', serif;
+      font-weight: 700;
+      font-size: 32px;
+      color: var(--ecobank-blue);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .logo-wordmark span {
+      color: var(--ecobank-cyan);
+    }
+
+    .logo-tagline {
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 11.5px;
+      font-weight: 300;
+      color: var(--ecobank-blue);
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Decorative diagonal slice */
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 200px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--ecobank-cyan) 0%, transparent 70%);
+      opacity: 0.08;
+    }
+
+    /* ─── BODY ────────────────────────────────────────── */
+    .body-content {
+      flex: 1;
+      padding: 48px 50px 40px;
+    }
+
+    .body-content p {
+      font-size: 13.5px;
+      line-height: 1.85;
+      color: var(--text-muted);
+      font-weight: 300;
+      font-style: italic;
+      opacity: 0.5;
+    }
+
+    /* ─── FOOTER ──────────────────────────────────────── */
+    .footer {
+      flex-shrink: 0;
+      border-top: 2px solid var(--ecobank-blue);
+      padding: 18px 50px 22px;
+      position: relative;
+      background: #fff;
+    }
+
+    .footer::before {
+      content: '';
+      position: absolute;
+      top: -5px; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--ecobank-cyan) 0%, var(--ecobank-blue) 60%, transparent 100%);
+      opacity: 0.3;
+    }
+
+    .footer-brand {
+      font-family: 'Merriweather', serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ecobank-blue);
+      margin-bottom: 5px;
+    }
+
+    .footer-brand span {
+      font-size: 9px;
+      font-weight: 400;
+      vertical-align: super;
+      letter-spacing: 0.3px;
+      color: var(--ecobank-blue);
+    }
+
+    .footer-details {
+      font-size: 10px;
+      color: var(--text-light);
+      font-weight: 300;
+      line-height: 1.7;
+      letter-spacing: 0.1px;
+    }
+
+    .footer-details strong {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .footer-details a {
+      color: var(--ecobank-blue);
+      text-decoration: none;
+      font-weight: 400;
+    }
+
+    .footer-details a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-bar-top"></div>
+      <div class="header-bar-accent"></div>
+      <div class="header-logo-area">
+        <div class="logo-wordmark">Eco<span>bank</span></div>
+        <div class="logo-tagline">The Pan African Bank</div>
+      </div>
+    </header>
+
+    <!-- BODY (letter content area) -->
+  <div class="content-row">
+        <div class="letter-content">
+            <h2>{{ title }}</h2>
+            {{ content|safe }}
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="footer-brand">Ecobank Rwanda <span>Plc.</span></div>
+      <div class="footer-details">
+        KN 3 AV 4 PO Box 3268 Kigali · Rwanda<br>
+        <strong>Tel:</strong> (250)788161000 / 252 503582 / 252 503584 / 252 502588 &nbsp;
+        <strong>Fax:</strong> (250) 252 501319 &nbsp;
+        <strong>Email:</strong> <a href="mailto:ecobankrw@ecobank.com">ecobankrw@ecobank.com</a> &nbsp;
+        <strong>Company code N°</strong> 100003637<br>
+        <strong>Website:</strong> <a href="https://www.ecobank.com" target="_blank">www.ecobank.com</a>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

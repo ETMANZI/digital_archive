@@ -1,0 +1,601 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Deleted Items (Recycle Bin){% endblock %}
+
+{% block content %}
+<style>
+  .recycle-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .recycle-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #1e293b, #ef4444);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  .recycle-header p {
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card-deleted {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    height: 100%;
+  }
+  .card-deleted .card-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+  }
+  .card-deleted .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .card-deleted .card-body {
+    padding: 0;
+  }
+  .deleted-table {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+  .deleted-table thead th {
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .deleted-table tbody td {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .deleted-table tbody tr:hover {
+    background: #f8fafc;
+  }
+  .btn-sm-view {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 0.3rem;
+  }
+  .btn-sm-view:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+  .btn-sm-restore {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-sm-restore:hover {
+    background: #059669;
+    transform: translateY(-1px);
+  }
+  .btn-sm-permanent {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 0.5rem;
+  }
+  .btn-sm-permanent:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+  }
+  .empty-message {
+    text-align: center;
+    padding: 2rem;
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+  /* Modal Styles */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+  /* Give the preview modal a higher z-index so it appears above folder modal */
+  #previewModal {
+    z-index: 2100;
+  }
+  .modal-card {
+    background: white;
+    border-radius: 1.5rem;
+    width: 90%;
+    max-width: 1400px;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #eef2ff;
+    background: white;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #64748b;
+  }
+  .close-modal:hover {
+    color: #dc2626;
+  }
+  .modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+  /* Small variant for folder files modal */
+  .modal-card.small-modal {
+    max-width: 1000px;
+  }
+  .table-responsive-sm {
+    overflow-x: auto;
+  }
+  .text-center {
+    text-align: center;
+  }
+  .py-4 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .text-danger {
+    color: #dc2626;
+  }
+</style>
+
+<div class="container-fluid">
+  <div class="recycle-header">
+    <h1><i class="fas fa-trash-restore"></i> Deleted Items (Recycle Bin)</h1>
+    <p>Items moved here can be restored or permanently deleted. Only System Administrators have access.</p>
+  </div>
+
+  <!-- Statistics -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stat-card">
+        <i class="fas fa-file-alt fa-2x text-danger"></i>
+        <div>
+          <div class="stat-number">{{ deleted_files|length }}</div>
+          <div class="stat-label">Deleted Files</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card">
+        <i class="fas fa-folder fa-2x text-warning"></i>
+        <div>
+          <div class="stat-number">{{ deleted_folders|length }}</div>
+          <div class="stat-label">Deleted Folders</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card-deleted">
+        <div class="card-header">
+          <h5><i class="fas fa-file-alt"></i> Deleted Files</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="deleted-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Original Folder</th>
+                  <th>Deleted By</th>
+                  <th>Deleted At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for file in deleted_files %}
+                <tr>
+                  <td>{{ file.file_name }}</td>
+                  <td>{{ file.folder.archive_item.title }} / {{ file.folder.folder_type.name }}</td>
+                  <td>
+                    {% if file.deleted_by %}
+                      {{ file.deleted_by.get_full_name|default:file.deleted_by.username }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                   </td>
+                  <td>{{ file.deleted_at|date:"Y-m-d H:i" }}</td>
+                  <td>
+                    <button class="btn-sm-view" onclick="openPreview('{{ file.stored_path|escapejs }}', '{{ file.file_name|escapejs }}')">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="btn-sm-restore" onclick="restoreFile({{ file.id }})">
+                      <i class="fas fa-undo-alt"></i> Restore
+                    </button>
+                    <button class="btn-sm-permanent" onclick="permanentDeleteFile({{ file.id }})">
+                      <i class="fas fa-trash-alt"></i> Parmanent Delete
+                    </button>
+                   </td>
+                 </tr>
+                {% empty %}
+                <tr><td colspan="5" class="empty-message">No deleted files.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-deleted">
+        <div class="card-header">
+          <h5><i class="fas fa-folder"></i> Deleted Folders</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="deleted-table">
+              <thead>
+                <tr>
+                  <th>Folder</th>
+                  <th>Associated Item</th>
+                  <th>Deleted By</th>
+                  <th>Deleted At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for folder in deleted_folders %}
+                <tr>
+                  <td>{{ folder.folder_type.name }}</td>
+                  <td>{{ folder.archive_item.title }}</td>
+                  <td>
+                    {% if folder.deleted_by %}
+                      {{ folder.deleted_by.get_full_name|default:folder.deleted_by.username }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                   </td>
+                  <td>{{ folder.deleted_at|date:"Y-m-d H:i" }}</td>
+                  <td>
+                    <button class="btn-sm-view" onclick="viewDeletedFolderFiles({{ folder.id }}, '{{ folder.folder_type.name|escapejs }}')">
+                      <i class="fas fa-folder-open"></i> View Files
+                    </button>
+                    <button class="btn-sm-restore" onclick="restoreFolder({{ folder.id }})">
+                      <i class="fas fa-undo-alt"></i> Restore
+                    </button>
+                    <button class="btn-sm-permanent" onclick="permanentDeleteFolder({{ folder.id }})">
+                      <i class="fas fa-trash-alt"></i> Permanent Delete
+                    </button>
+                   </td>
+                 </tr>
+                {% empty %}
+                <tr><td colspan="5" class="empty-message">No deleted folders.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal (for individual file preview) -->
+<div id="previewModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><i class="fas fa-file-alt"></i> <span id="previewFileName"></span></h3>
+      <button class="close-modal" id="closePreviewModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <iframe id="previewFrame" src="about:blank"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for listing files inside a deleted folder -->
+<div id="folderFilesModal" class="modal-overlay">
+  <div class="modal-card small-modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-folder-open"></i> Files in: <span id="modalFolderName"></span></h3>
+      <button class="close-modal" id="closeFolderFilesModalBtn">&times;</button>
+    </div>
+    <div class="modal-body" style="padding: 1rem;">
+      <div id="folderFilesLoading" class="text-center py-4">Loading files...</div>
+      <div id="folderFilesContent" style="display: none;">
+        <div class="table-responsive-sm">
+          <table class="deleted-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Path (inside folder)</th>
+                <th>Size</th>
+                <th>Deleted At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="folderFilesTableBody">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================== Preview Modal ========================
+const previewModal = document.getElementById('previewModal');
+const previewFrame = document.getElementById('previewFrame');
+const previewFileNameSpan = document.getElementById('previewFileName');
+const closePreviewBtn = document.getElementById('closePreviewModalBtn');
+
+// Modified openPreview: first close the folder modal (if open) to avoid stacking confusion
+function openPreview(storedPath, fileName) {
+    // If the folder files modal is open, close it
+    if (folderFilesModal.classList.contains('active')) {
+        closeFolderFilesModal();
+    }
+    const url = `/serve-file/${encodeURIComponent(storedPath)}/`;
+    previewFileNameSpan.innerText = fileName;
+    previewFrame.src = url;
+    previewModal.classList.add('active');
+}
+
+function closePreviewModal() {
+    previewModal.classList.remove('active');
+    previewFrame.src = 'about:blank';
+}
+if (closePreviewBtn) closePreviewBtn.addEventListener('click', closePreviewModal);
+previewModal.addEventListener('click', (e) => { if (e.target === previewModal) closePreviewModal(); });
+
+// ======================== Folder Files Modal ========================
+const folderFilesModal = document.getElementById('folderFilesModal');
+const closeFolderFilesBtn = document.getElementById('closeFolderFilesModalBtn');
+const modalFolderNameSpan = document.getElementById('modalFolderName');
+const folderFilesLoading = document.getElementById('folderFilesLoading');
+const folderFilesContent = document.getElementById('folderFilesContent');
+const folderFilesTableBody = document.getElementById('folderFilesTableBody');
+
+function viewDeletedFolderFiles(folderId, folderName) {
+    modalFolderNameSpan.innerText = folderName;
+    folderFilesLoading.style.display = 'block';
+    folderFilesContent.style.display = 'none';
+    folderFilesModal.classList.add('active');
+
+    fetch(`/folders/${folderId}/deleted-files/`, {
+        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch files');
+        return response.json();
+    })
+    .then(data => {
+        const files = data.files;  // expects: [{ id, name, relative_path, size, stored_path, deleted_at }]
+        folderFilesTableBody.innerHTML = '';
+        if (files.length === 0) {
+            folderFilesTableBody.innerHTML = '<tr><td colspan="5" class="empty-message">No files in this folder</td></tr>';
+        } else {
+            files.forEach(file => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(file.name)}</td>
+                    <td>${escapeHtml(file.relative_path || '')}</td>
+                    <td>${formatBytes(file.size)}</td>
+                    <td>${new Date(file.deleted_at).toLocaleString()}</td>
+                    <td>
+                        <button class="btn-sm-view" onclick="openPreview('${escapeJs(file.stored_path)}', '${escapeJs(file.name)}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="btn-sm-restore" onclick="restoreFileFromFolder(${file.id})">
+                            <i class="fas fa-undo-alt"></i> Restore
+                        </button>
+                        <button class="btn-sm-permanent" onclick="permanentDeleteFileFromFolder(${file.id})">
+                            <i class="fas fa-trash-alt"></i> Delete
+                        </button>
+                      </td>
+                `;
+                folderFilesTableBody.appendChild(row);
+            });
+        }
+        folderFilesLoading.style.display = 'none';
+        folderFilesContent.style.display = 'block';
+    })
+    .catch(error => {
+        console.error(error);
+        folderFilesLoading.innerHTML = '<div class="text-danger">Error loading files. Please try again.</div>';
+    });
+}
+
+function closeFolderFilesModal() {
+    folderFilesModal.classList.remove('active');
+}
+if (closeFolderFilesBtn) closeFolderFilesBtn.addEventListener('click', closeFolderFilesModal);
+folderFilesModal.addEventListener('click', (e) => { if (e.target === folderFilesModal) closeFolderFilesModal(); });
+
+// ======================== Restore/Delete for files inside a deleted folder ========================
+function restoreFileFromFolder(fileId) {
+    if (confirm('Restore this file? It will reappear in its original location (the folder might still be deleted).')) {
+        fetch(`/files/${fileId}/restore/`, { method: 'POST', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+            .then(response => {
+                if (response.ok) {
+                    alert('File restored successfully. Refresh the page to see changes.');
+                    location.reload();
+                } else {
+                    alert('Restore failed');
+                }
+            });
+    }
+}
+
+function permanentDeleteFileFromFolder(fileId) {
+    if (confirm('⚠️ Permanently delete this file? This action cannot be undone.')) {
+        fetch(`/files/${fileId}/permanent-delete/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+            .then(response => {
+                if (response.ok) location.reload();
+                else alert('Delete failed');
+            });
+    }
+}
+
+// ======================== Helper functions ========================
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function escapeJs(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ======================== Original Restore/Delete functions (files & folders) ========================
+function restoreFile(id) {
+  if (confirm('Restore this file? It will reappear in its original folder.')) {
+    fetch(`/files/${id}/restore/`, { method: 'POST', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+      .then(response => {
+        if (response.ok) location.reload();
+        else alert('Restore failed');
+      });
+  }
+}
+
+function permanentDeleteFile(id) {
+  if (confirm('⚠️ Permanently delete this file? This action cannot be undone.')) {
+    fetch(`/files/${id}/permanent-delete/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+      .then(response => {
+        if (response.ok) location.reload();
+        else alert('Delete failed');
+      });
+  }
+}
+
+function restoreFolder(id) {
+  if (confirm('Restore this folder and all its contents? They will reappear in their original location.')) {
+    fetch(`/folders/${id}/restore/`, { method: 'POST', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+      .then(response => {
+        if (response.ok) location.reload();
+        else alert('Restore failed');
+      });
+  }
+}
+
+function permanentDeleteFolder(id) {
+  if (confirm('⚠️ Permanently delete this folder and all its files? This action cannot be undone.')) {
+    fetch(`/folders/${id}/permanent-delete/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+      .then(response => {
+        if (response.ok) location.reload();
+        else alert('Delete failed');
+      });
+  }
+}
+
+function getCookie(name) {
+  let value = null;
+  if (document.cookie) {
+    document.cookie.split(';').forEach(c => {
+      c = c.trim();
+      if (c.startsWith(name + '=')) value = decodeURIComponent(c.slice(name.length + 1));
+    });
+  }
+  return value;
+}
+</script>
+{% endblock %}

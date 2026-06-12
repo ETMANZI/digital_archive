@@ -1,0 +1,523 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit: {{ folder.name }}{% endblock %}
+
+{% block content %}
+<div class="sf-edit-container">
+    <div class="page-header">
+        <div>
+            <h1><i class="fas fa-folder-open"></i> {{ folder.name }}</h1>
+            <p class="text-muted">{{ folder.description|default:"No description" }}</p>
+        </div>
+        <a href="{% url 'archive:shared_folders_manage' %}" class="btn-outline"><i class="fas fa-arrow-left"></i> Back to Folders</a>
+    </div>
+
+    <!-- Two columns -->
+    <div class="two-columns">
+        <!-- Left: Added files and access management -->
+        <div class="added-files-panel">
+            <!-- Files in this package -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-check-circle"></i> Files in this package</h3>
+                </div>
+                <div class="card-body" id="addedFilesList">
+                    {% for loan_file in folder.loan_files.all %}
+                    <div class="file-item" data-file-id="{{ loan_file.id }}" data-file-type="loan">
+                        <div>
+                            <div><i class="fas fa-file-alt"></i> <strong>{{ loan_file.file_name }}</strong></div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-user"></i> {{ loan_file.folder.archive_item.client_name }} (ID: {{ loan_file.folder.archive_item.customer_id }})</span>
+                                <span><i class="fas fa-folder"></i> {{ loan_file.folder.folder_type.name }}</span>
+                                <span><i class="fas fa-hashtag"></i> Loan: {{ loan_file.folder.archive_item.loan_id }}</span>
+                            </div>
+                        </div>
+                        <button class="remove-file-btn" data-file-id="{{ loan_file.id }}" data-file-type="loan"><i class="fas fa-trash-alt"></i> Remove</button>
+                    </div>
+                    {% endfor %}
+                    {% for doc_file in folder.doc_files.all %}
+                    <div class="file-item" data-file-id="{{ doc_file.id }}" data-file-type="document">
+                        <div>
+                            <div><i class="fas fa-file-alt"></i> <strong>{{ doc_file.file_name }}</strong></div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-file"></i> Document: {{ doc_file.folder.archive_item.title }}</span>
+                                <span><i class="fas fa-folder"></i> Folder: {{ doc_file.folder.name }}</span>
+                            </div>
+                        </div>
+                        <button class="remove-file-btn" data-file-id="{{ doc_file.id }}" data-file-type="document"><i class="fas fa-trash-alt"></i> Remove</button>
+                    </div>
+                    {% empty %}
+                        {% if not folder.loan_files.exists and not folder.doc_files.exists %}
+                            <div class="empty-state">No files added yet. Use the search panel on the right to add files.</div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Current users with access (unchanged) -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-check"></i> Users with Access</h3>
+                </div>
+                <div class="card-body" id="usersWithAccessList">
+                    {% for access in folder.allowed_users.all %}
+                    <div class="access-user-item" data-user-id="{{ access.user.id }}">
+                        <div>
+                            <strong>{{ access.user.username }}</strong> ({{ access.user.email }})
+                            <div class="meta">Granted by {{ access.granted_by.username }} on {{ access.granted_at|date:"Y-m-d" }}</div>
+                        </div>
+                        <button class="revoke-access-btn" data-user-id="{{ access.user.id }}"><i class="fas fa-trash-alt"></i> Revoke</button>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">No users have access yet. Use the form below to grant access.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Grant access panel (unchanged) -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-plus"></i> Grant or Update Access</h3>
+                </div>
+                <div class="card-body">
+                    <div class="search-box" style="margin-bottom: 0.8rem;">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="userSearchInput" placeholder="Search by username or email...">
+                    </div>
+                    <div class="form-group">
+                        <label>Select users to grant access</label>
+                        <div class="multiselect-wrapper">
+                            <select id="userSelect" multiple class="user-multiselect">
+                                {% for user in all_users %}
+                                <option value="{{ user.id }}" {% if user.id in allowed_user_ids %}selected{% endif %}>{{ user.username }} ({{ user.email }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="multiselect-tools">
+                                <span class="selected-count"></span>
+                                <button type="button" class="clear-all-btn" style="display: none;">Clear all</button>
+                            </div>
+                        </div>
+                        <small class="form-hint">⌘/Ctrl + click to select multiple. Existing access will be replaced.</small>
+                    </div>
+                    <div class="form-actions">
+                        <button id="saveAccessBtn" class="btn-primary"><i class="fas fa-save"></i> Save Access Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: File search and add -->
+        <div class="search-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-search"></i> Find Files from Customers</h3>
+                </div>
+                <div class="card-body">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="fileSearchInput" placeholder="Search by file name, customer, folder...">
+                    </div>
+                    <div id="searchResults" class="search-results">
+                        <!-- AJAX results appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .sf-edit-container { max-width: 1400px; margin: 2rem auto; padding: 1rem; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .two-columns { display: flex; gap: 1.5rem; }
+    .added-files-panel { flex: 1; }
+    .search-panel { flex: 1.5; }
+    .card { background: white; border-radius: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eef2ff; margin-bottom: 1.5rem; }
+    .card-header { padding: 1rem 1.5rem; border-bottom: 1px solid #eef2ff; font-weight: 600; }
+    .card-body { padding: 1.5rem; }
+    .file-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 0.5rem; }
+    .remove-file-btn { background: #fee2e2; border: none; color: #dc2626; padding: 0.2rem 0.6rem; border-radius: 2rem; font-size: 0.7rem; cursor: pointer; }
+    .empty-state { text-align: center; color: #94a3b8; padding: 2rem; }
+    .search-box { position: relative; margin-bottom: 1.5rem; }
+    .search-box i { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+    .search-box input { width: 100%; padding: 0.5rem 0.75rem 0.5rem 2.2rem; border: 1px solid #cbd5e1; border-radius: 2rem; font-size: 0.9rem; }
+    .search-results { max-height: 500px; overflow-y: auto; }
+    .result-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 0.75rem;
+        border-bottom: 1px solid #eef2ff;
+        background: white;
+        transition: background 0.1s ease;
+    }
+    .result-item:hover {
+        background: #fefce8;
+    }
+    .result-info {
+        flex: 1;
+    }
+    .file-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.7rem;
+        color: #64748b;
+    }
+    .file-meta span {
+        background: #f8fafc;
+        padding: 0.15rem 0.6rem;
+        border-radius: 1rem;
+    }
+    .result-info strong {
+        font-size: 0.85rem;
+        display: inline-block;
+        margin-bottom: 0.2rem;
+    }
+    .result-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.7rem;
+        color: #64748b;
+    }
+    .result-meta span {
+        background: #f8fafc;
+        padding: 0.15rem 0.6rem;
+        border-radius: 1rem;
+        white-space: nowrap;
+    }
+    .add-file-btn {
+        background: #eef2ff;
+        border: none;
+        padding: 0.2rem 0.8rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.7rem;
+        margin-top: 0.2rem;
+        flex-shrink: 0;
+    }
+    .user-multiselect { width: 100%; padding: 0.5rem; border-radius: 0.75rem; border: 1px solid #cbd5e1; min-height: 100px; }
+    .btn-primary { background: #1e293b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; }
+    .btn-outline { background: transparent; border: 1px solid #cbd5e1; padding: 0.5rem 1rem; border-radius: 2rem; text-decoration: none; color: #1e293b; }
+    .mt-4 { margin-top: 1.5rem; }
+    .access-user-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .revoke-access-btn {
+        background: #fee2e2;
+        border: none;
+        color: #dc2626;
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+    }
+    .meta {
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-top: 0.1rem;
+    }
+    @media (max-width: 800px) { .two-columns { flex-direction: column; } }
+
+
+/* Improved Grant Access card */
+.multiselect-wrapper {
+    position: relative;
+}
+.user-multiselect {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #cbd5e1;
+    min-height: 120px;
+    background: #fefefe;
+    font-size: 0.8rem;
+}
+.user-multiselect option {
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.4rem;
+}
+.user-multiselect option:checked {
+    background: #eef2ff linear-gradient(0deg, #eef2ff 0%, #eef2ff 100%);
+    color: #1e293b;
+}
+.multiselect-tools {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+    color: #64748b;
+}
+.selected-count::before {
+    content: "Selected: ";
+}
+.clear-all-btn {
+    background: none;
+    border: none;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: 0.7rem;
+    text-decoration: underline;
+}
+.clear-all-btn:hover {
+    color: #b91c1c;
+}
+.form-actions {
+    margin-top: 1.2rem;
+    display: flex;
+    justify-content: flex-end;
+}
+.btn-primary i {
+    margin-right: 0.4rem;
+}
+/* User search input */
+#userSearchInput {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    padding-left: 2rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    background: white url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>') no-repeat left 0.7rem center;
+    background-size: 0.9rem;
+    transition: all 0.2s;
+}
+#userSearchInput:focus {
+    outline: none;
+    border-color: #1e293b;
+    box-shadow: 0 0 0 2px rgba(30,41,59,0.1);
+}
+</style>
+
+<script>
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+    const folderId = {{ folder.id }};
+
+    function getCookie(name) {
+        let v = null;
+        if (document.cookie) {
+            document.cookie.split(';').forEach(c => {
+                c = c.trim();
+                if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+            });
+        }
+        return v;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // Search for files
+    let searchTimeout;
+    const searchInput = document.getElementById('fileSearchInput');
+    const resultsContainer = document.getElementById('searchResults');
+
+    searchInput.addEventListener('input', function(e) {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+        if (query.length < 2) {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/search-files/?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.files.length) {
+                        resultsContainer.innerHTML = '<div class="empty-state">No files found.</div>';
+                        return;
+                    }
+                    resultsContainer.innerHTML = data.files.map(file => `
+                        <div class="result-item">
+                            <div class="result-info">
+                                <strong><i class="fas fa-file-alt"></i> ${escapeHtml(file.file_name)}</strong>
+                                <div class="result-meta">
+                                    <span><i class="fas fa-user"></i> ${escapeHtml(file.customer_name)}</span>
+                                    ${file.customer_id ? `<span><i class="fas fa-id-card"></i> ${escapeHtml(file.customer_id)}</span>` : ''}
+                                    ${file.loan_id ? `<span><i class="fas fa-hashtag"></i> ${escapeHtml(file.loan_id)}</span>` : ''}
+                                    <span><i class="fas fa-folder"></i> ${escapeHtml(file.folder_name)}</span>
+                                    <span><i class="fas fa-calendar"></i> ${escapeHtml(file.date)}</span>
+                                </div>
+                            </div>
+                            <button class="add-file-btn" data-file-id="${file.id}" data-file-type="${file.type}">Add</button>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => console.error('Search fetch error:', err));
+        }, 300);
+    });
+
+    // ADD FILE - event delegation (works for dynamically added buttons)
+    document.getElementById('searchResults').addEventListener('click', (e) => {
+        const btn = e.target.closest('.add-file-btn');
+        if (!btn) return;
+        e.preventDefault();
+        const fileId = btn.getAttribute('data-file-id');
+        const fileType = btn.getAttribute('data-file-type');
+        console.log('Add button clicked:', { fileId, fileType });
+        if (!fileId || !fileType) {
+            alert('Error: Missing file ID or type. Please refresh the page and try again.');
+            return;
+        }
+        addFileToFolder(fileId, fileType);
+    });
+
+    function addFileToFolder(fileId, fileType) {
+        const url = `/api/shared-folders/${folderId}/add-file/`;
+        const payload = { file_id: fileId, file_type: fileType };
+        console.log('Sending POST to', url, payload);
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify(payload)
+        })
+        .then(async res => {
+            if (!res.ok) {
+                const text = await res.text();
+                console.error('Server response error:', res.status, text);
+                throw new Error(`Server responded with ${res.status}: ${text.substring(0, 100)}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.status === 'ok') {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Network error: ' + err.message);
+        });
+    }
+
+    // Remove file from shared folder
+    document.querySelectorAll('.remove-file-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const fileId = btn.dataset.fileId;
+            const fileType = btn.dataset.fileType;
+            if (confirm('Remove this file from the package?')) {
+                fetch(`/api/shared-folders/${folderId}/remove-file/${fileId}/?file_type=${fileType}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': csrftoken }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') location.reload();
+                    else alert('Error: ' + (data.error || 'Unknown error'));
+                })
+                .catch(err => alert('Network error: ' + err.message));
+            }
+        });
+    });
+
+    // Revoke a single user
+    function revokeAccess(userId) {
+        fetch(`/api/shared-folders/${folderId}/revoke-access/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ user_id: userId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') location.reload();
+            else alert('Error: ' + (data.error || 'Unknown error'));
+        });
+    }
+
+    document.body.addEventListener('click', (e) => {
+        const revokeBtn = e.target.closest('.revoke-access-btn');
+        if (revokeBtn) {
+            const userId = revokeBtn.dataset.userId;
+            if (confirm('Revoke access for this user?')) {
+                revokeAccess(userId);
+            }
+        }
+    });
+
+    // Save access changes
+    document.getElementById('saveAccessBtn').addEventListener('click', () => {
+        const selected = Array.from(document.getElementById('userSelect').selectedOptions).map(opt => opt.value);
+        fetch(`/api/shared-folders/${folderId}/access/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ user_ids: selected })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                alert('Access saved.');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        });
+    });
+
+    // Update selected count
+    function updateSelectedCount() {
+        const select = document.getElementById('userSelect');
+        const selected = Array.from(select.selectedOptions);
+        const countSpan = document.querySelector('.selected-count');
+        const clearBtn = document.querySelector('.clear-all-btn');
+        if (countSpan) countSpan.textContent = selected.length;
+        if (clearBtn) clearBtn.style.display = selected.length > 0 ? 'inline-block' : 'none';
+    }
+    document.getElementById('userSelect')?.addEventListener('change', updateSelectedCount);
+    document.querySelector('.clear-all-btn')?.addEventListener('click', () => {
+        const select = document.getElementById('userSelect');
+        for (let opt of select.options) opt.selected = false;
+        updateSelectedCount();
+    });
+    updateSelectedCount();
+
+    // Filter user multiselect
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSelect = document.getElementById('userSelect');
+    if (userSearchInput && userSelect) {
+        userSearchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            const options = userSelect.options;
+            let hasVisible = false;
+            for (let i = 0; i < options.length; i++) {
+                const opt = options[i];
+                const text = opt.textContent.toLowerCase();
+                if (searchTerm === '' || text.includes(searchTerm)) {
+                    opt.style.display = '';
+                    hasVisible = true;
+                } else {
+                    opt.style.display = 'none';
+                }
+            }
+            const noMatchMsg = document.getElementById('noUserMatchMsg');
+            if (hasVisible) {
+                if (noMatchMsg) noMatchMsg.remove();
+            } else {
+                if (!noMatchMsg) {
+                    const msg = document.createElement('div');
+                    msg.id = 'noUserMatchMsg';
+                    msg.className = 'empty-state';
+                    msg.style.padding = '0.5rem';
+                    msg.style.fontSize = '0.7rem';
+                    msg.innerText = 'No users match your search.';
+                    userSelect.parentNode.appendChild(msg);
+                }
+            }
+        });
+    }
+</script>
+
+{% endblock %}

@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Loan Signature History{% endblock %}
+
+{% block content %}
+<style>
+  .page-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #1e293b, #3b82f6);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    margin-bottom: 0.5rem;
+  }
+  .page-header p {
+    color: #64748b;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  .card {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .card-body {
+    padding: 0;
+  }
+  .table {
+    margin-bottom: 0;
+  }
+  .table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1e293b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .table tbody td {
+    padding: 1rem 1.25rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    font-size: 0.9rem;
+  }
+  .table tbody tr:hover {
+    background: #f8fafc;
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+  .status-badge.completed {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .status-badge.declined {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .status-badge.expired {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .btn-view {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .btn-view:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    color: white;
+    text-decoration: none;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+  }
+  .empty-state i {
+    font-size: 4rem;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+  }
+  .empty-state h4 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+  .empty-state p {
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+  @media (max-width: 768px) {
+    .page-header h1 { font-size: 1.25rem; }
+    .table thead th, .table tbody td { padding: 0.75rem 1rem; }
+  }
+</style>
+
+<div class="container-fluid">
+  <div class="page-header">
+    <h1><i class="fas fa-history"></i> Loan Signature History</h1>
+    <p>Completed and expired loan signature requests</p>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          {% if completed_envelopes %}
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Loan ID</th>
+                    <th>Document</th>
+                    <th>Status</th>
+                    <th>Completed / Expired</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for envelope in completed_envelopes %}
+                  <tr>
+                    <td><strong>{{ envelope.item_file.loan.loanid|default:"—" }}</strong></td>
+                    <td>{{ envelope.title|truncatechars:50 }}</td>
+                    <td>
+                      <span class="status-badge {{ envelope.status }}">
+                        <i class="fas 
+                          {% if envelope.status == 'completed' %}fa-check-circle
+                          {% elif envelope.status == 'expired' %}fa-times-circle
+                          {% elif envelope.status == 'declined' %}fa-times-circle
+                          {% else %}fa-clock{% endif %}">
+                        </i>
+                        {{ envelope.get_status_display }}
+                      </span>
+                    </td>
+                    <td>{{ envelope.completed_at|date:"Y-m-d H:i"|default:envelope.expires_at|date:"Y-m-d" }}</td>
+                    <td>
+                      <a href="{% url 'archive:envelope_detail' envelope.id %}" class="btn-view">
+                        <i class="fas fa-eye"></i> View
+                      </a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-inbox"></i>
+              <h4>No Signature History</h4>
+              <p>There are no completed or expired loan signature requests.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

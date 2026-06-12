@@ -1,0 +1,194 @@
+{% load static %}
+
+<div class="item-detail">
+    <div class="detail-header">
+        <h2>{{ item.title }}</h2>
+        <span class="detail-status">{{ item.status.name }}</span>
+    </div>
+
+    <div class="detail-meta">
+        <div class="meta-row">
+            <strong>Created:</strong> {{ item.created_at|date:"Y-m-d H:i" }}
+            {% if item.created_by %}
+                by {{ item.created_by.get_full_name|default:item.created_by.username }}
+            {% else %}
+                by Anonymous
+            {% endif %}
+        </div>
+        <div class="meta-row">
+            <strong>Last modified:</strong> {{ item.last_modified_at|date:"Y-m-d H:i" }}
+            {% if item.last_modified_by %}
+                by {{ item.last_modified_by.get_full_name|default:item.last_modified_by.username }}
+            {% endif %}
+        </div>
+        {% if item.collection %}
+        <div class="meta-row">
+            <strong>Collection:</strong> {{ item.collection.name }}
+        </div>
+        {% endif %}
+        {% if item.retention_until %}
+        <div class="meta-row">
+            <strong>Retention until:</strong> {{ item.retention_until|date:"Y-m-d" }}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="detail-description">
+        <h3>Description</h3>
+        <p>{{ item.description|default:"No description provided."|linebreaks }}</p>
+    </div>
+
+    {% if item.tags.all %}
+    <div class="detail-tags">
+        <h3>Tags</h3>
+        <div class="tag-list">
+            {% for tag in item.tags.all %}
+            <span class="tag">{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="detail-files">
+        <h3>Files</h3>
+        {% with files=item.file_assets.all %}
+            {% if files %}
+                <ul class="file-list">
+                {% for file in files %}
+                    <li>
+                        <span class="file-name">{{ file.file_name }}</span>
+                        <span class="file-meta">({{ file.file_size|filesizeformat }}, {{ file.mime_type }})</span>
+                        {% if not file.encrypted %}
+                        <a href="{% url 'download_file' file.id %}" class="download-link">Download</a>
+                        {% else %}
+                        <span class="encrypted-badge">Encrypted</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No files attached.</p>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    {% if item.integrity_hash %}
+    <div class="detail-integrity">
+        <h3>Integrity hash</h3>
+        <code>{{ item.integrity_hash }}</code>
+    </div>
+    {% endif %}
+
+    <div class="detail-actions">
+        <button class="btn-close-detail">Close</button>
+        {# Add edit/delete buttons if user has permissions #}
+    </div>
+</div>
+
+<style>
+.item-detail {
+    padding: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+.detail-status {
+    background: #f0f0f0;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+.detail-meta {
+    background: #f9f9f9;
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+.meta-row {
+    margin: 0.25rem 0;
+}
+.detail-description h3,
+.detail-tags h3,
+.detail-files h3,
+.detail-integrity h3 {
+    font-size: 1rem;
+    margin: 1rem 0 0.5rem 0;
+    color: #333;
+}
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.tag {
+    background: #e8f0fe;
+    color: #1a73e8;
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    font-size: 0.8rem;
+}
+.file-list {
+    list-style: none;
+    padding-left: 0;
+}
+.file-list li {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.file-name {
+    font-weight: 500;
+}
+.file-meta {
+    font-size: 0.8rem;
+    color: #666;
+}
+.download-link {
+    color: #1a73e8;
+    text-decoration: none;
+}
+.encrypted-badge {
+    background: #f1f1f1;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+code {
+    background: #f4f4f4;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    word-break: break-all;
+}
+.detail-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+.btn-close-detail {
+    background: #666;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+</style>
+
+<script>
+document.querySelector('.btn-close-detail')?.addEventListener('click', function() {
+    // Closes the modal or hides the detail container
+    const modal = document.querySelector('.modal');
+    if (modal) modal.style.display = 'none';
+    else window.history.back();
+});
+</script>

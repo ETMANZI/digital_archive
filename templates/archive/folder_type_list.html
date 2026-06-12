@@ -1,0 +1,843 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Folder Types | Archive Manager{% endblock %}
+
+{% block content %}
+<div class="folder-types-container">
+    <div class="page-header">
+        <div class="header-left">
+            <div class="header-icon"><i class="fas fa-folder-tree"></i></div>
+            <div>
+                <h1>Folder Types</h1>
+                <p class="text-muted">Manage hierarchical folder categories – subfolders automatically get numbers like 7.1, 7.2, etc.</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'archive:home' %}" class="btn-outline"><i class="fas fa-arrow-left"></i> Back to Home</a>
+        </div>
+    </div>
+
+    <div class="stats-summary">
+        <div class="stat-item"><span class="stat-value">{{ folder_types|length }}</span><span class="stat-label">Total Folder Types</span></div>
+        <div class="stat-item"><span class="stat-value">{{ folder_types|dictsortreversed:"order"|first|default:"—" }}</span><span class="stat-label">Highest Order (global)</span></div>
+    </div>
+
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <button id="showTopLevelModalBtn" class="btn-primary"><i class="fas fa-plus"></i> New Top‑Level Folder Type</button>
+            <button id="showSubfolderModalBtn" class="btn-secondary"><i class="fas fa-folder-plus"></i> New Subfolder Type</button>
+        </div>
+        <div class="toolbar-right">
+            <div class="search-box"><i class="fas fa-search"></i><input type="text" id="treeSearch" placeholder="Search by name or description..."></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div id="folderTypeTree" class="folder-type-tree"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Top‑Level Folder Type -->
+<div id="topLevelModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header"><h3><i class="fas fa-plus-circle"></i> Create Top‑Level Folder Type</h3><button class="close-modal" data-modal="topLevelModal">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Name <span class="required">*</span></label>
+                <input type="text" id="topName" placeholder="e.g., Call Memo" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Order Number <span class="required">*</span></label>
+                <input type="number" id="topOrder" placeholder="1, 2, 3...">
+                <small class="form-hint">Lower numbers appear first. Must be unique among top‑level types.</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="topDescription" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary modal-cancel" data-modal="topLevelModal">Cancel</button>
+            <button class="btn-primary" id="confirmTopLevelBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Subfolder Type (no order required) -->
+<div id="subfolderModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header"><h3><i class="fas fa-folder-plus"></i> Create Subfolder Type</h3><button class="close-modal" data-modal="subfolderModal">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Name <span class="required">*</span></label>
+                <input type="text" id="subName" placeholder="e.g., CCM" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Parent Folder Type <span class="required">*</span></label>
+                <select id="subParentId">
+                    <option value="">-- Select --</option>
+                    {% for ft in folder_types %}
+                        <option value="{{ ft.id }}">{{ ft.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">This subfolder type will be available only under this parent.</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="subDescription" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary modal-cancel" data-modal="subfolderModal">Cancel</button>
+            <button class="btn-primary" id="confirmSubfolderBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal (allows changing parent and order) -->
+<div id="editModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header"><h3><i class="fas fa-edit"></i> Edit Folder Type</h3><button class="close-modal" data-modal="editModal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>Name <span class="required">*</span></label>
+                <input type="text" id="editName">
+            </div>
+            <div class="form-group">
+                <label>Parent Folder Type</label>
+                <select id="editParentId">
+                    <option value="">-- None (Top Level) --</option>
+                    {% for ft in folder_types %}
+                        <option value="{{ ft.id }}">{{ ft.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Order Number <span class="required">*</span></label>
+                <input type="number" id="editOrder">
+                <small class="form-hint">Must be unique within the same parent.</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="editDescription" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary modal-cancel" data-modal="editModal">Cancel</button>
+            <button class="btn-primary" id="confirmEditBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-card modal-sm">
+        <div class="modal-header"><h3><i class="fas fa-trash-alt"></i> Delete Folder Type</h3><button class="close-modal" data-modal="deleteModal">&times;</button></div>
+        <div class="modal-body">
+            <div class="delete-warning"><i class="fas fa-exclamation-triangle"></i><p>Are you sure you want to delete <strong id="deleteName"></strong>?</p></div>
+            <div class="warning-box"><i class="fas fa-info-circle"></i> This will also remove this folder type from all loan documents where it is used.</div>
+            <input type="hidden" id="deleteId">
+        </div>
+        <div class="modal-footer"><button class="btn-secondary modal-cancel" data-modal="deleteModal">Cancel</button><button class="btn-danger" id="confirmDeleteBtn">Delete Permanently</button></div>
+    </div>
+</div>
+
+<style>
+    /* ========== MAIN CONTAINER ========== */
+    .folder-types-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+
+/* Ensure Cancel buttons have a clear style */
+.modal-cancel,
+.btn-secondary {
+    background: #f1f5f9;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    padding: 0.6rem 1.2rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-cancel:hover,
+.btn-secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
+
+/* Ensure primary buttons are distinct */
+.btn-primary {
+    background: #1e293b;
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary:hover {
+    background: #334155;
+    transform: translateY(-1px);
+}
+
+    /* ========== HEADER ========== */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .header-icon {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .header-icon i {
+        font-size: 28px;
+        color: #3b82f6;
+    }
+    .page-header h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem 0;
+        color: #0f172a;
+    }
+    .text-muted {
+        color: #64748b;
+        margin: 0;
+        font-size: 0.85rem;
+    }
+    .btn-outline {
+        background: transparent;
+        border: 1px solid #cbd5e1;
+        padding: 0.6rem 1.2rem;
+        border-radius: 0.75rem;
+        color: #1e293b;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .btn-outline:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        transform: translateY(-1px);
+    }
+
+    /* ========== STATS ========== */
+    .stats-summary {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-item {
+        background: white;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.5rem;
+        border: 1px solid #eef2ff;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .stat-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* ========== TOOLBAR ========== */
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .toolbar-left {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .search-box {
+        position: relative;
+        width: 300px;
+    }
+    .search-box i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+    }
+    .search-box input {
+        width: 100%;
+        padding: 0.6rem 1rem 0.6rem 2.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        font-size: 0.85rem;
+        background: white;
+    }
+    .search-box input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    /* ========== CARD ========== */
+    .card {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        border: 1px solid #eef2ff;
+    }
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    /* ========== TREE VIEW ========== */
+    .folder-type-tree ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+    .folder-type-tree li {
+        margin: 0.3rem 0;
+        list-style: none;
+    }
+    .tree-node {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #f8fafc;
+        padding: 0.5rem 0.8rem;
+        border-radius: 0.6rem;
+        border: 1px solid #eef2ff;
+        transition: all 0.2s;
+    }
+    .tree-node:hover {
+        background: #fefce8;
+    }
+    .node-info {
+        display: flex;
+        align-items: baseline;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .node-order {
+        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+        padding: 0.2rem 0.6rem;
+        border-radius: 2rem;
+        font-weight: 700;
+        font-size: 0.7rem;
+        color: #1e40af;
+        white-space: nowrap;
+        font-family: monospace;
+    }
+    .node-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #0f172a;
+    }
+    .node-name i {
+        color: #f59e0b;
+        margin-right: 0.5rem;
+    }
+    .node-desc {
+        font-size: 0.7rem;
+        color: #64748b;
+        font-style: italic;
+    }
+    .node-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .node-actions button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.3rem;
+        transition: 0.2s;
+    }
+    .node-actions .edit-node {
+        color: #3b82f6;
+    }
+    .node-actions .edit-node:hover {
+        background: #eff6ff;
+    }
+    .node-actions .delete-node {
+        color: #ef4444;
+    }
+    .node-actions .delete-node:hover {
+        background: #fef2f2;
+    }
+    .toggle-children {
+        cursor: pointer;
+        margin-right: 0.5rem;
+        color: #64748b;
+        width: 20px;
+        display: inline-block;
+        font-size: 0.8rem;
+    }
+    .children-container {
+        margin-left: 1.5rem;
+    }
+
+    /* ========== MODALS ========== */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 550px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: modalSlideIn 0.2s ease;
+    }
+    @keyframes modalSlideIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .modal-sm {
+        max-width: 450px;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.2rem 1.5rem;
+        border-bottom: 1px solid #eef2ff;
+        background: white;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .modal-header h3 i {
+        margin-right: 0.5rem;
+        color: #3b82f6;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.8rem;
+        cursor: pointer;
+        color: #94a3b8;
+        transition: 0.2s;
+        line-height: 1;
+    }
+    .close-modal:hover {
+        color: #ef4444;
+    }
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+    }
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #eef2ff;
+        background: white;
+    }
+    .form-group {
+        margin-bottom: 1.2rem;
+    }
+    .form-group label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+        color: #1f2937;
+    }
+    .required {
+        color: #ef4444;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.6rem 0.8rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        font-family: inherit;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .form-hint {
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-top: 0.25rem;
+        display: block;
+    }
+    .delete-warning {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .delete-warning i {
+        font-size: 3rem;
+        color: #f59e0b;
+        margin-bottom: 0.5rem;
+    }
+    .delete-warning p {
+        margin: 0;
+        font-size: 1rem;
+    }
+    .warning-box {
+        background: #fef3c7;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #92400e;
+        margin-top: 1rem;
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+        .folder-types-container {
+            padding: 1rem;
+        }
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .stats-summary {
+            flex-wrap: wrap;
+        }
+        .toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .search-box {
+            width: 100%;
+        }
+        .children-container {
+            margin-left: 0.5rem;
+        }
+        .tree-node {
+            flex-wrap: wrap;
+        }
+        .node-info {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+
+<script>
+    const csrftoken = getCookie('csrftoken');
+    let folderTypesData = [];
+
+    function getCookie(name) {
+        let v = null;
+        if (document.cookie) {
+            document.cookie.split(';').forEach(c => {
+                c = c.trim();
+                if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+            });
+        }
+        return v;
+    }
+
+    function showModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+    function hideModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // Build tree from flat array and also compute display path (hierarchical numbering)
+    function buildTree(flatList) {
+        const map = {};
+        const roots = [];
+        flatList.forEach(item => { map[item.id] = { ...item, children: [] }; });
+        flatList.forEach(item => {
+            if (item.parent_id && map[item.parent_id]) map[item.parent_id].children.push(map[item.id]);
+            else roots.push(map[item.id]);
+        });
+        const sortByOrder = (arr) => arr.sort((a,b) => a.order - b.order);
+        sortByOrder(roots);
+        const sortChildren = (node) => { if (node.children.length) { sortByOrder(node.children); node.children.forEach(sortChildren); } };
+        roots.forEach(sortChildren);
+        return roots;
+    }
+
+    // Compute hierarchical display number (e.g., "7.1") by walking up ancestors
+    function computeDisplayNumber(node, ancestors = []) {
+        // ancestors: list of orders from root to parent
+        const currentOrder = node.order;
+        const fullPath = [...ancestors, currentOrder];
+        return fullPath.join('.');
+    }
+
+    // Recursive render with display path
+    function renderTree(nodes, ancestors = []) {
+        let html = '<ul style="list-style:none; padding-left:0;">';
+        for (const node of nodes) {
+            const hasChildren = node.children && node.children.length > 0;
+            const nodeId = `node-${node.id}`;
+            const displayNumber = computeDisplayNumber(node, ancestors);
+            html += `<li>
+                <div class="tree-node" data-id="${node.id}" data-parent-id="${node.parent_id || ''}" data-name="${escapeHtml(node.name)}" data-order="${node.order}" data-description="${escapeHtml(node.description || '')}">
+                    <div class="node-info">
+                        ${hasChildren ? `<span class="toggle-children" onclick="toggleChildren('${nodeId}')">▼</span>` : '<span class="toggle-children" style="opacity:0;">•</span>'}
+                        <span class="node-order">${escapeHtml(displayNumber)}</span>
+                        <span class="node-name"><i class="fas fa-folder"></i> ${escapeHtml(node.name)}</span>
+                        ${node.description ? `<span class="node-desc">— ${escapeHtml(node.description.substring(0, 60))}${node.description.length > 60 ? '…' : ''}</span>` : ''}
+                    </div>
+                    <div class="node-actions">
+                        <button class="edit-node" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="delete-node" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                </div>
+                <div id="${nodeId}" class="children-container" style="margin-left:1.2rem;">
+                    ${hasChildren ? renderTree(node.children, [...ancestors, node.order]) : ''}
+                </div>
+            </li>`;
+        }
+        html += '</ul>';
+        return html;
+    }
+
+    window.toggleChildren = function(containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            const isVisible = container.style.display !== 'none';
+            container.style.display = isVisible ? 'none' : 'block';
+            const toggleSpan = container.previousElementSibling.querySelector('.toggle-children');
+            if (toggleSpan) toggleSpan.innerHTML = isVisible ? '▶' : '▼';
+        }
+    };
+
+    // Load data from Django template
+    window.folderTypesData = [
+        {% for ft in folder_types %}
+            { id: {{ ft.id }}, name: "{{ ft.name|escapejs }}", order: {{ ft.order }}, parent_id: {{ ft.parent_id|default:'null' }}, description: "{{ ft.description|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function refreshTree() {
+        const tree = buildTree(window.folderTypesData);
+        const container = document.getElementById('folderTypeTree');
+        if (tree.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open fa-3x"></i><p>No folder types defined yet</p></div>';
+            return;
+        }
+        container.innerHTML = renderTree(tree);
+        attachTreeEvents();
+    }
+
+    function attachTreeEvents() {
+        document.querySelectorAll('.edit-node').forEach(btn => {
+            btn.removeEventListener('click', handleEdit);
+            btn.addEventListener('click', handleEdit);
+        });
+        document.querySelectorAll('.delete-node').forEach(btn => {
+            btn.removeEventListener('click', handleDelete);
+            btn.addEventListener('click', handleDelete);
+        });
+    }
+
+    function handleEdit(e) {
+        const nodeDiv = e.currentTarget.closest('.tree-node');
+        const id = nodeDiv.dataset.id;
+        const name = nodeDiv.dataset.name;
+        const order = nodeDiv.dataset.order;
+        const parentId = nodeDiv.dataset.parentId;
+        const description = nodeDiv.dataset.description;
+        document.getElementById('editId').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editOrder').value = order;
+        document.getElementById('editDescription').value = description;
+        document.getElementById('editParentId').value = parentId || '';
+        showModal('editModal');
+    }
+
+    function handleDelete(e) {
+        const nodeDiv = e.currentTarget.closest('.tree-node');
+        const id = nodeDiv.dataset.id;
+        const name = nodeDiv.dataset.name;
+        document.getElementById('deleteId').value = id;
+        document.getElementById('deleteName').innerText = name;
+        showModal('deleteModal');
+    }
+
+    // Search filter – simple client-side hide/show
+    function filterTree() {
+        const term = document.getElementById('treeSearch').value.toLowerCase();
+        const nodes = document.querySelectorAll('.tree-node');
+        nodes.forEach(node => {
+            const name = node.dataset.name.toLowerCase();
+            const desc = (node.dataset.description || '').toLowerCase();
+            const matches = name.includes(term) || desc.includes(term);
+            node.style.display = matches ? '' : 'none';
+        });
+    }
+    document.getElementById('treeSearch').addEventListener('input', filterTree);
+
+    // Create top-level folder type
+    async function createTopLevel() {
+        const name = document.getElementById('topName').value.trim();
+        const order = document.getElementById('topOrder').value.trim();
+        const description = document.getElementById('topDescription').value.trim();
+        if (!name || !order) { alert('Name and order are required.'); return; }
+        const res = await fetch('{% url "archive:folder_type_list" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ action: 'create', name, order: parseInt(order), parent_id: null, description })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') location.reload();
+        else alert('Error: ' + data.message);
+    }
+
+    // Create subfolder type (no order sent; backend auto-assigns)
+    async function createSubfolder() {
+        const name = document.getElementById('subName').value.trim();
+        const parentId = document.getElementById('subParentId').value;
+        const description = document.getElementById('subDescription').value.trim();
+        if (!name || !parentId) { alert('Name and parent are required.'); return; }
+        const res = await fetch('{% url "archive:folder_type_list" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ action: 'create', name, parent_id: parseInt(parentId), description })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') location.reload();
+        else alert('Error: ' + data.message);
+    }
+
+    // Edit folder type
+    async function editFolderType() {
+        const id = document.getElementById('editId').value;
+        const name = document.getElementById('editName').value.trim();
+        const parentId = document.getElementById('editParentId').value;
+        const order = document.getElementById('editOrder').value.trim();
+        const description = document.getElementById('editDescription').value.trim();
+        if (!name || !order) { alert('Name and order are required.'); return; }
+        const payload = {
+            action: 'edit',
+            id: parseInt(id),
+            name,
+            order: parseInt(order),
+            parent_id: parentId ? parseInt(parentId) : null,
+            description
+        };
+        const res = await fetch('{% url "archive:folder_type_list" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') location.reload();
+        else alert('Error: ' + data.message);
+    }
+
+    // Delete folder type
+    async function deleteFolderType(id) {
+        const res = await fetch('{% url "archive:folder_type_list" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ action: 'delete', id: parseInt(id) })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') location.reload();
+        else alert('Error: ' + data.message);
+    }
+
+    // Modal close handlers
+    document.querySelectorAll('.close-modal, .modal-cancel').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modal = btn.closest('.modal-overlay');
+            if (modal) modal.classList.remove('active');
+        });
+    });
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.classList.remove('active');
+        });
+    });
+
+    document.getElementById('showTopLevelModalBtn')?.addEventListener('click', () => showModal('topLevelModal'));
+    document.getElementById('showSubfolderModalBtn')?.addEventListener('click', () => showModal('subfolderModal'));
+    document.getElementById('confirmTopLevelBtn')?.addEventListener('click', createTopLevel);
+    document.getElementById('confirmSubfolderBtn')?.addEventListener('click', createSubfolder);
+    document.getElementById('confirmEditBtn')?.addEventListener('click', editFolderType);
+    document.getElementById('confirmDeleteBtn')?.addEventListener('click', async () => {
+        const id = document.getElementById('deleteId').value;
+        hideModal('deleteModal');
+        await deleteFolderType(id);
+    });
+
+    refreshTree();
+</script>
+{% endblock %}

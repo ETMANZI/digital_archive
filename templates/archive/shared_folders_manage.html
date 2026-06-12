@@ -1,0 +1,348 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Shared Folders (Audit Packages){% endblock %}
+
+{% block content %}
+<div class="sf-manage-container">
+    <div class="page-header">
+        <div>
+            <h1><i class="fas fa-folder-open"></i> Shared Folders</h1>
+            <p class="text-muted">Create packages of files for auditors or reviewers.</p>
+        </div>
+        <a href="{% url 'archive:home' %}" class="btn-outline"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Create New Shared Folder</h3>
+        </div>
+        <div class="card-body">
+            <form id="createFolderForm" class="sf-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="createName" required placeholder="e.g., Audit Q1 2025">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="createDescription" rows="2" placeholder="Brief description of the package"></textarea>
+                </div>
+                <button type="submit" class="btn-primary"><i class="fas fa-plus"></i> Create Folder</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3>Existing Shared Folders</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="data-table" id="sharedFolderTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for folder in folders %}
+                        <tr data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-description="{{ folder.description }}">
+                            <td>{{ folder.name }}</td>
+                            <td>{{ folder.description|default:"—" }}</td>
+                            <td>{{ folder.created_at|date:"Y-m-d H:i" }}</td>
+                            <td class="actions-cell">
+                                <a href="{% url 'archive:shared_folder_edit' folder.id %}" class="action-btn manage-btn" title="Manage files and access">
+                                    <i class="fas fa-folder-open"></i> Manage Files
+                                </a>
+                                <button class="action-btn edit-details-btn" 
+                                        data-id="{{ folder.id }}" 
+                                        data-name="{{ folder.name }}" 
+                                        data-description="{{ folder.description }}" 
+                                        title="Edit name/description">
+                                    <i class="fas fa-edit"></i> Edit Details
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4">No shared folders yet. Create one above.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal (name/description) -->
+<div id="editModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Edit Shared Folder Details</h3>
+            <button class="close-modal" data-modal="editModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editFolderId">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" id="editName" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="editDescription" class="form-control" rows="2"></textarea>
+            </div>
+            <div id="editError" class="error-message" style="display: none; color: #dc2626; font-size: 0.7rem; margin-bottom: 1rem;"></div>
+            <div class="modal-actions">
+                <button class="modal-cancel" data-modal="editModal">Cancel</button>
+                <button id="confirmEditBtn" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .sf-manage-container { max-width: 1200px; margin: 2rem auto; padding: 1rem; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .card { background: white; border-radius: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eef2ff; margin-bottom: 2rem; }
+    .card-header { padding: 1rem 1.5rem; border-bottom: 1px solid #eef2ff; font-weight: 600; }
+    .card-body { padding: 1.5rem; }
+    .sf-form { max-width: 500px; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.3rem; color: #1f2937; }
+    .form-group input, .form-group textarea { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 0.75rem; font-size: 0.9rem; }
+    .btn-primary { background: #1e293b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+    .btn-outline { background: transparent; border: 1px solid #cbd5e1; padding: 0.5rem 1rem; border-radius: 2rem; text-decoration: none; color: #1e293b; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eef2ff; }
+    .data-table th { background: #f8fafc; font-weight: 600; }
+    .mt-4 { margin-top: 1.5rem; }
+    .actions-cell { white-space: nowrap; }
+    .action-btn {
+        background: none;
+        border: none;
+        padding: 0.3rem 0.8rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        transition: 0.2s;
+        margin-right: 0.3rem;
+    }
+    .action-btn.manage-btn {
+        background: #eef2ff;
+        color: #1e293b;
+    }
+    .action-btn.manage-btn:hover {
+        background: #e0e7ff;
+    }
+    .action-btn.edit-details-btn {
+        background: #fef9c3;
+        color: #854d0e;
+    }
+    .action-btn.edit-details-btn:hover {
+        background: #fde68a;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 450px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #eef2ff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #94a3b8;
+        transition: 0.2s;
+    }
+    .close-modal:hover {
+        color: #dc2626;
+    }
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eef2ff;
+    }
+    .modal-cancel {
+        background: #f1f5f9;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 2rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+    .error-message {
+        margin-top: 0.5rem;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.75rem;
+        font-size: 0.9rem;
+    }
+</style>
+
+<script>
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+    function getCookie(name) {
+        let v = null;
+        if (document.cookie) {
+            document.cookie.split(';').forEach(c => {
+                c = c.trim();
+                if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+            });
+        }
+        return v;
+    }
+
+    // Create folder
+    document.getElementById('createFolderForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('createName').value.trim();
+        const description = document.getElementById('createDescription').value.trim();
+        if (!name) return alert('Name is required');
+        try {
+            const res = await fetch('{% url "archive:shared_folders_manage" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrftoken },
+                body: `name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}`
+            });
+            if (res.ok) window.location.reload();
+            else alert('Error creating folder');
+        } catch (err) {
+            alert('Network error');
+        }
+    });
+
+    // Edit modal logic
+    const editModal = document.getElementById('editModal');
+    const editFolderId = document.getElementById('editFolderId');
+    const editName = document.getElementById('editName');
+    const editDescription = document.getElementById('editDescription');
+    const editError = document.getElementById('editError');
+    let currentRow = null;
+
+    function showEditModal(id, name, description, row) {
+        editFolderId.value = id;
+        editName.value = name;
+        editDescription.value = description;
+        currentRow = row;
+        editError.style.display = 'none';
+        editModal.classList.add('active');
+    }
+
+    // Attach click events to all Edit Details buttons
+    document.querySelectorAll('.edit-details-btn').forEach(btn => {
+        btn.removeEventListener('click', btn._listener);
+        const listener = () => {
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            const description = btn.dataset.description;
+            const row = btn.closest('tr');
+            showEditModal(id, name, description, row);
+        };
+        btn.addEventListener('click', listener);
+        btn._listener = listener;
+    });
+
+    // Close modal events
+    function closeModal() {
+        editModal.classList.remove('active');
+    }
+    document.querySelectorAll('.close-modal, .modal-cancel').forEach(btn => {
+        btn.addEventListener('click', closeModal);
+    });
+    editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(); });
+
+    // Save changes
+    document.getElementById('confirmEditBtn').addEventListener('click', async () => {
+        const id = editFolderId.value;
+        const name = editName.value.trim();
+        const description = editDescription.value.trim();
+        if (!name) {
+            editError.innerText = 'Name is required';
+            editError.style.display = 'block';
+            return;
+        }
+        try {
+            const res = await fetch(`/api/shared-folders/${id}/update/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ name, description })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                if (currentRow) {
+                    currentRow.cells[0].innerText = name;
+                    currentRow.cells[1].innerText = description || '—';
+                    currentRow.dataset.name = name;
+                    currentRow.dataset.description = description;
+                    // Also update the button's data attributes
+                    const editBtn = currentRow.querySelector('.edit-details-btn');
+                    if (editBtn) {
+                        editBtn.dataset.name = name;
+                        editBtn.dataset.description = description;
+                    }
+                }
+                closeModal();
+            } else {
+                editError.innerText = data.error || 'Update failed';
+                editError.style.display = 'block';
+            }
+        } catch (err) {
+            editError.innerText = 'Network error: ' + err.message;
+            editError.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

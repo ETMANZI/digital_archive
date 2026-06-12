@@ -1,0 +1,414 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Insights Dashboard – Digital Archive{% endblock %}
+
+{% block content %}
+<div class="insights-container">
+    <div class="page-header">
+        <h1><i class="fas fa-chart-line"></i> Insights Dashboard</h1>
+        <p class="subtitle">Statistics and analytics for the loan document archive</p>
+    </div>
+
+    <!-- Stats cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_documents }}</div>
+            <div class="stat-label">Total Documents (Files)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_loans }}</div>
+            <div class="stat-label">Total Loans</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_customers }}</div>
+            <div class="stat-label">Unique Customers</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_collections }}</div>
+            <div class="stat-label">Collections</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ active_users_last_30d }}</div>
+            <div class="stat-label">Active Users (last 30d)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_active_users  }}</div>
+            <div class="stat-label">T Active Users </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ pending_requests }}</div>
+            <div class="stat-label">Pending Access Requests</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_storage_human }}</div>
+            <div class="stat-label">Total Storage</div>
+        </div>
+    </div>
+
+    <!-- Charts row 1: Loan counts by different dimensions -->
+    <div class="chart-row">
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-pie"></i> Loans by Collection</h3>
+            <canvas id="collectionChart" width="400" height="300"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-pie"></i> Loans by Workflow Status</h3>
+            <canvas id="statusChart" width="400" height="300"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-pie"></i> Loans by Loan Status</h3>
+            <canvas id="loanStatusChart" width="400" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Top customers & loans per year -->
+    <div class="chart-row">
+        <div class="chart-card">
+            <h3><i class="fas fa-trophy"></i> Top 10 Customers by Loan Count</h3>
+            <canvas id="topCustomersChart" width="400" height="300"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-line"></i> Loans Disbursed per Year</h3>
+            <canvas id="loansPerYearChart" width="400" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Most requested items & Audit activity -->
+    <div class="chart-row">
+        <div class="chart-card">
+            <h3><i class="fas fa-clipboard-list"></i> Most Requested Loans</h3>
+            {% if most_requested_loans %}
+                <table class="insights-table">
+                    <thead><tr><th>Loan Title</th><th>Requests</th></thead>
+                    <tbody>
+                        {% for item in most_requested_loans %}
+                        <tr>
+                            <td>{{ item.archive_item__title|truncatechars:50 }}</td>
+                            <td class="text-center">{{ item.request_count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted">No access requests yet.</p>
+            {% endif %}
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-bar"></i> Audit Activity (last 30 days)</h3>
+            <canvas id="auditChart" width="400" height="300"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-simple"></i> Access Requests Summary</h3>
+            <canvas id="accessRequestsChart" width="400" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Additional insights -->
+    <div class="chart-row">
+        <div class="table-card">
+            <h3><i class="fas fa-database"></i> Storage & Metadata</h3>
+            <table class="insights-table">
+                <tr><th>Total files (documents)</th><td>{{ total_files }}</td></tr>
+                <tr><th>Average file size</th><td>{{ avg_file_size_human }}</td></tr>
+                <tr><th>Loans without custom metadata</th><td>{{ loans_without_metadata }}</td></tr>
+                <tr><th>Total active users</th><td>{{ total_active_users }}</td></tr>
+                <tr><th>Inactive users (last 30d)</th><td>{{ inactive_users_30d }}</td></tr>
+            </table>
+        </div>
+        <div class="table-card">
+            <h3><i class="fas fa-chart-simple"></i> Access Request Status</h3>
+            <canvas id="accessStatusChart" width="400" height="200"></canvas>
+            <ul style="margin-top: 1rem;">
+                <li><span class="badge badge-pending">Pending</span> {{ pending_requests }}</li>
+                <li><span class="badge badge-approved">Approved</span> {{ approved_requests }} ({{ expired_requests }} expired)</li>
+                <li><span class="badge badge-denied">Denied</span> {{ denied_requests }}</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<style>
+    .insights-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.25rem 0;
+    }
+    .subtitle {
+        color: #64748b;
+        font-size: 0.85rem;
+        margin-top: -0.25rem;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1rem;
+        text-align: center;
+        border: 1px solid #eef2ff;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        transition: all 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0.5rem 0;
+    }
+    .stat-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: 0.5px;
+    }
+    .chart-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .chart-card, .table-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1rem;
+        border: 1px solid #eef2ff;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        transition: all 0.2s;
+    }
+    .chart-card:hover, .table-card:hover {
+        border-color: #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .chart-card h3, .table-card h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    .insights-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .insights-table th, .insights-table td {
+        padding: 0.6rem;
+        text-align: left;
+        border-bottom: 1px solid #eef2ff;
+        font-size: 0.8rem;
+    }
+    .insights-table th {
+        font-weight: 600;
+        color: #475569;
+    }
+    .insights-table td.text-center {
+        text-align: center;
+    }
+    .badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 30px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .badge-pending { background: #fef9c3; color: #854d0e; }
+    .badge-approved { background: #dcfce7; color: #166534; }
+    .badge-denied { background: #fee2e2; color: #991b1b; }
+    .text-muted {
+        color: #94a3b8;
+        font-size: 0.8rem;
+        text-align: center;
+        padding: 1rem;
+    }
+    canvas {
+        max-height: 300px;
+        width: 100% !important;
+    }
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .chart-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    (function() {
+        function initCharts() {
+            function renderPieChart(ctx, labels, data) {
+                return new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw} loans` } }
+                        }
+                    }
+                });
+            }
+
+            // 1. Loans by Collection
+            const collectionData = {{ loans_by_collection|safe }};
+            if (collectionData.length && document.getElementById('collectionChart')) {
+                renderPieChart(
+                    document.getElementById('collectionChart').getContext('2d'),
+                    collectionData.map(c => c.name),
+                    collectionData.map(c => c.loan_count)
+                );
+            }
+
+            // 2. Loans by Workflow Status
+            const statusData = {{ loans_by_workflow_status|safe }};
+            if (statusData.length && document.getElementById('statusChart')) {
+                renderPieChart(
+                    document.getElementById('statusChart').getContext('2d'),
+                    statusData.map(s => s.status__name),
+                    statusData.map(s => s.count)
+                );
+            }
+
+            // 3. Loans by Loan Status
+            const loanStatusData = {{ loans_by_loan_status|safe }};
+            if (loanStatusData.length && document.getElementById('loanStatusChart')) {
+                renderPieChart(
+                    document.getElementById('loanStatusChart').getContext('2d'),
+                    loanStatusData.map(l => l.loan_status),
+                    loanStatusData.map(l => l.count)
+                );
+            }
+
+            // 4. Top Customers (horizontal bar) – by loan count
+            const topCustomers = {{ top_customers_by_loans|safe }};
+            if (topCustomers.length && document.getElementById('topCustomersChart')) {
+                const customerLabels = topCustomers.map(c => c.client_name.length > 25 ? c.client_name.substring(0,22)+'...' : c.client_name);
+                const customerCounts = topCustomers.map(c => c.loan_count);
+                new Chart(document.getElementById('topCustomersChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: customerLabels,
+                        datasets: [{
+                            label: 'Loans',
+                            data: customerCounts,
+                            backgroundColor: '#3b82f6'
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: { legend: { position: 'top' } }
+                    }
+                });
+            }
+
+            // 5. Loans per Year (line chart)
+            const loansYear = {{ loans_per_year|safe }};
+            if (loansYear.length && document.getElementById('loansPerYearChart')) {
+                new Chart(document.getElementById('loansPerYearChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: loansYear.map(y => y.year),
+                        datasets: [{
+                            label: 'Loans',
+                            data: loansYear.map(y => y.count),
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245,158,11,0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'top' } } }
+                });
+            }
+
+            // 6. Audit Activity (bar chart)
+            const auditLabels = {{ audit_labels|safe }};
+            const auditCounts = {{ audit_counts|safe }};
+            if (auditLabels.length && document.getElementById('auditChart')) {
+                new Chart(document.getElementById('auditChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: auditLabels,
+                        datasets: [{
+                            label: 'Actions',
+                            data: auditCounts,
+                            backgroundColor: '#8b5cf6'
+                        }]
+                    },
+                    options: { responsive: true }
+                });
+            }
+
+            // 7. Access Requests Summary (bar)
+            const pending = {{ pending_requests }};
+            const approved = {{ approved_requests }};
+            const denied = {{ denied_requests }};
+            if (document.getElementById('accessRequestsChart')) {
+                new Chart(document.getElementById('accessRequestsChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Pending', 'Approved', 'Denied'],
+                        datasets: [{
+                            label: 'Requests',
+                            data: [pending, approved, denied],
+                            backgroundColor: ['#f59e0b', '#10b981', '#ef4444']
+                        }]
+                    },
+                    options: { responsive: true }
+                });
+            }
+
+            // 8. Access Status Pie
+            if (document.getElementById('accessStatusChart')) {
+                new Chart(document.getElementById('accessStatusChart').getContext('2d'), {
+                    type: 'pie',
+                    data: {
+                        labels: ['Pending', 'Approved', 'Denied'],
+                        datasets: [{
+                            data: [pending, approved, denied],
+                            backgroundColor: ['#f59e0b', '#10b981', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCharts);
+        } else {
+            initCharts();
+        }
+    })();
+</script>
+{% endblock %}

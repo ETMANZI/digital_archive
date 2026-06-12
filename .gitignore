@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django
+*.log
+*.pot
+*.pyc
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+static/
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secret keys
+config.py
+secrets.py
+key.py
+
+# Uploaded files
+uploads/
+signed_documents/
+signatures/
+signed_envelopes/
+
+# Migration files (optional - uncomment if you want to exclude migrations)
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+# Logs
+logs/
+*.log
+
+# Virtual Environment
+venv/
+venv3/
+ENV/
+env/
+
+# Project specific
+*.sln
+*.swp
+*.bak

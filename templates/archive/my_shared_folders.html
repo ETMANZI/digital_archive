@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Shared Folders{% endblock %}
+
+{% block content %}
+<div class="shared-folders-container">
+    <div class="page-header">
+        <div>
+            <h1><i class="fas fa-share-alt"></i> Shared Folders</h1>
+            <p class="subtitle">Folders that have been shared with you</p>
+        </div>
+        <a href="{% url 'archive:home' %}" class="btn-outline">
+            <i class="fas fa-arrow-left"></i> Back to Home
+        </a>
+    </div>
+
+    {% if folders %}
+        <div class="folders-grid">
+            {% for folder in folders %}
+                <div class="folder-card">
+                    <div class="folder-icon-wrapper">
+                        <i class="fas fa-folder-open folder-icon"></i>
+                    </div>
+                    <div class="folder-content">
+                        <h3>{{ folder.name }}</h3>
+                        <p class="folder-desc">{{ folder.description|default:"No description provided."|truncatechars:80 }}</p>
+                        <div class="folder-meta">
+                            <span class="meta-item">
+                                <i class="fas fa-calendar-alt"></i> {{ folder.created_at|date:"M d, Y" }}
+                            </span>
+                            <span class="meta-item file-count">
+                                <i class="fas fa-file-alt"></i> {{ folder.total_files }} file{{ folder.total_files|pluralize }}
+                            </span>
+                        </div>
+                        <a href="{% url 'archive:view_shared_folder' folder.id %}" class="btn-open">
+                            <i class="fas fa-external-link-alt"></i> Open Folder
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <i class="fas fa-folder-open fa-4x"></i>
+            </div>
+            <h3>No shared folders yet</h3>
+            <p>When someone shares a folder with you, it will appear here.</p>
+            <a href="{% url 'archive:home' %}" class="btn-primary">
+                <i class="fas fa-home"></i> Go to Dashboard
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .shared-folders-container {
+        max-width: 1300px;
+        margin: 2rem auto;
+        padding: 1rem;
+    }
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 2.5rem;
+        border-bottom: 1px solid #eef2ff;
+        padding-bottom: 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.25rem 0;
+    }
+    .subtitle {
+        color: #64748b;
+        font-size: 0.85rem;
+        margin: 0;
+    }
+    .btn-outline {
+        background: #f1f5f9;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    .btn-outline:hover {
+        background: #e2e8f0;
+        transform: translateY(-1px);
+    }
+
+    /* Grid layout */
+    .folders-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.8rem;
+    }
+
+    /* Folder card */
+    .folder-card {
+        background: white;
+        border-radius: 1.2rem;
+        overflow: hidden;
+        transition: all 0.25s ease;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.05);
+        border: 1px solid #eef2ff;
+        display: flex;
+        flex-direction: column;
+    }
+    .folder-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 25px -8px rgba(0,0,0,0.1);
+        border-color: #e2e8f0;
+    }
+
+    .folder-icon-wrapper {
+        background: linear-gradient(135deg, #fef9e3 0%, #fff3d1 100%);
+        text-align: center;
+        padding: 1.8rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .folder-icon {
+        font-size: 3rem;
+        color: #f59e0b;
+        filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.05));
+    }
+
+    .folder-content {
+        padding: 1.2rem 1.2rem 1.5rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .folder-content h3 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+        color: #0f172a;
+        letter-spacing: -0.2px;
+    }
+    .folder-desc {
+        font-size: 0.8rem;
+        color: #475569;
+        line-height: 1.4;
+        margin-bottom: 1rem;
+        flex: 1;
+    }
+    .folder-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.5rem 0 1.2rem;
+        font-size: 0.7rem;
+        color: #64748b;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 0.7rem;
+    }
+    .meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .file-count {
+        background: #f8fafc;
+        padding: 0.2rem 0.5rem;
+        border-radius: 2rem;
+        font-weight: 500;
+    }
+    .btn-open {
+        background: #1e293b;
+        color: white;
+        text-decoration: none;
+        text-align: center;
+        padding: 0.5rem 0;
+        border-radius: 2rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 0.2rem;
+    }
+    .btn-open:hover {
+        background: #334155;
+        transform: translateY(-1px);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        background: #f8fafc;
+        border-radius: 2rem;
+        border: 1px solid #eef2ff;
+        max-width: 500px;
+        margin: 2rem auto;
+    }
+    .empty-icon {
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+    .empty-state h3 {
+        font-size: 1.3rem;
+        margin: 0 0 0.5rem;
+        color: #1e293b;
+    }
+    .empty-state p {
+        color: #64748b;
+        margin-bottom: 1.5rem;
+    }
+    .btn-primary {
+        background: #1e293b;
+        color: white;
+        padding: 0.5rem 1.2rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+    }
+    .btn-primary:hover {
+        background: #334155;
+    }
+
+    @media (max-width: 768px) {
+        .shared-folders-container {
+            padding: 0.5rem;
+        }
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.8rem;
+        }
+        .folders-grid {
+            gap: 1rem;
+        }
+        .folder-icon-wrapper {
+            padding: 1.2rem 0;
+        }
+    }
+</style>
+{% endblock %}
