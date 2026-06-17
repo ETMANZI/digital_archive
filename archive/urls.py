@@ -11,9 +11,7 @@ from . import metada, views, usermanagement,views_signature
 app_name = 'archive'
 
 urlpatterns = [
-    # ---- Core views ----
-    # path('api/folders/<int:folder_id>/soft-delete/', itemfolder.soft_delete_item_folder, name='soft_delete_folder'),
-    # path('api/files/<uuid:asset_uuid>/soft-delete/', itemfolder.soft_delete_item_file, name='soft_delete_file'),
+
     path('home/', views.home, name='home'),
     path('collections/', views.collections_view, name='collections'),
     path('login/', views.login_view, name='login'),
