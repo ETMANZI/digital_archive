@@ -414,9 +414,7 @@ const previewFrame = document.getElementById('previewFrame');
 const previewFileNameSpan = document.getElementById('previewFileName');
 const closePreviewBtn = document.getElementById('closePreviewModalBtn');
 
-// Modified openPreview: first close the folder modal (if open) to avoid stacking confusion
 function openPreview(storedPath, fileName) {
-    // If the folder files modal is open, close it
     if (folderFilesModal.classList.contains('active')) {
         closeFolderFilesModal();
     }

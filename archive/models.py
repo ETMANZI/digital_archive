@@ -194,8 +194,7 @@ class ArchiveItem(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
     
     document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES, default=DOCUMENT_TYPE_LOAN)
-    
-    # Loan-specific fields – now optional
+
     client_name = models.CharField(max_length=200, blank=True, null=True, db_index=True, help_text="Name of the customer/borrower (only for loan documents)")
     customer_id = models.CharField(max_length=50, blank=True, null=True, db_index=True, help_text="Unique customer identifier (only for loan documents)")
     loan_id = models.CharField(max_length=50, blank=True, null=True, db_index=True, help_text="Unique loan identifier (only for loan documents)")
@@ -272,9 +271,6 @@ class ArchiveItem(models.Model):
         from dateutil.relativedelta import relativedelta
         delta = relativedelta(timezone.now().date(), self.date_of_disbursement)
         return delta.years * 12 + delta.months
-
-
-
 
 
 class FileAsset(models.Model):
@@ -433,8 +429,6 @@ class AccessRequest(models.Model):
     
 
 
-
-# models.py
 class UserFolder(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='folders')
     name = models.CharField(max_length=200)
@@ -456,7 +450,7 @@ class FolderType(models.Model):
     description = models.TextField(blank=True)
 
     class Meta:
-    #     ordering = ['order']
+
         ordering = ['parent__id', 'order']
         unique_together = [['parent', 'order']]
     def __str__(self):
@@ -645,15 +639,6 @@ class DocumentFile(models.Model):
     
 
 
-
-
-
-######################################################################################################################################
-# models.py - Add these new models
-
-
-# Add this to the end of your archive/models.py file
-
 class DigitalSignature(models.Model):
     """Digital signature applied to a file"""
     SIGNATURE_TYPE_SIMPLE = 'simple'
@@ -665,40 +650,32 @@ class DigitalSignature(models.Model):
     
     signature_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     
-    # Link to either ItemFile or DocumentFile
     item_file = models.ForeignKey('ItemFile', on_delete=models.CASCADE, null=True, blank=True, related_name='signatures')
     document_file = models.ForeignKey('DocumentFile', on_delete=models.CASCADE, null=True, blank=True, related_name='signatures')
     
-    # Signer information
     signed_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='applied_signatures')
     signature_type = models.CharField(max_length=20, choices=SIGNATURE_TYPE_CHOICES, default=SIGNATURE_TYPE_SIMPLE)
     
-    # Signature appearance
     page_number = models.IntegerField(default=0)
     x_position = models.FloatField()
     y_position = models.FloatField()
     signature_width = models.FloatField(default=200)
     signature_height = models.FloatField(default=80)
     
-    # Signature image (for simple/visible signatures)
     signature_image = models.ImageField(upload_to='signatures/', null=True, blank=True)
     
-    # Certificate-based signature data
     certificate_signer_name = models.CharField(max_length=200, blank=True)
     certificate_serial_number = models.CharField(max_length=100, blank=True)
     certificate_issuer = models.CharField(max_length=200, blank=True)
     signing_time = models.DateTimeField(auto_now_add=True)
     
-    # Signature metadata
     reason = models.CharField(max_length=200, blank=True, help_text="Reason for signing")
     location = models.CharField(max_length=200, blank=True, help_text="Location where signed")
     contact_info = models.CharField(max_length=200, blank=True)
     
-    # Signed file reference (the signed PDF version)
     signed_file = models.FileField(upload_to='signed_documents/', null=True, blank=True)
     signed_file_hash = models.CharField(max_length=64, blank=True, help_text="SHA-256 of signed file")
     
-    # Validation
     is_valid = models.BooleanField(default=True)
     validation_details = models.JSONField(null=True, blank=True)
     
@@ -739,28 +716,19 @@ class SignatureEnvelope(models.Model):
     
     envelope_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     
-    # Document reference (your existing files)
     item_file = models.ForeignKey('ItemFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
     document_file = models.ForeignKey('DocumentFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
-    
-    # Envelope details
     title = models.CharField(max_length=255)
     message = models.TextField(blank=True, help_text="Message to signers")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_envelopes')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    
-    # Signing settings
     signing_order = models.CharField(max_length=20, choices=[('parallel', 'Parallel'), ('sequential', 'Sequential')], default='parallel')
     reminder_days = models.IntegerField(default=3, help_text="Days between reminders")
     expires_days = models.IntegerField(default=30, help_text="Days until envelope expires")
-    
-    # Tracking
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    
-    # Signed document
     signed_document = models.FileField(upload_to='signed_envelopes/', null=True, blank=True)
     
     class Meta:
@@ -800,29 +768,19 @@ class SignatureEnvelope(models.Model):
     ]
     
     envelope_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    
-    # Document reference (your existing files)
     item_file = models.ForeignKey('ItemFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
     document_file = models.ForeignKey('DocumentFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
-    
-    # Envelope details
     title = models.CharField(max_length=255)
     message = models.TextField(blank=True, help_text="Message to signers")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_envelopes')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    
-    # Signing settings
     signing_order = models.CharField(max_length=20, choices=[('parallel', 'Parallel'), ('sequential', 'Sequential')], default='parallel')
     reminder_days = models.IntegerField(default=3, help_text="Days between reminders")
     expires_days = models.IntegerField(default=30, help_text="Days until envelope expires")
-    
-    # Tracking
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    
-    # Signed document
     signed_document = models.FileField(upload_to='signed_envelopes/', null=True, blank=True)
     
     class Meta:
@@ -847,7 +805,6 @@ class SignatureEnvelope(models.Model):
         self.sent_at = timezone.now()
         self.save()
         
-        # Send email to each recipient
         for recipient in self.recipients.all():
             recipient.send_signing_request()
     
@@ -856,7 +813,6 @@ class SignatureEnvelope(models.Model):
         self.status = self.STATUS_VOIDED
         self.save()
         
-        # Notify all recipients
         for recipient in self.recipients.all():
             recipient.notify_voided(reason)
 
@@ -885,29 +841,21 @@ class SignatureRecipient(models.Model):
     
     recipient_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     envelope = models.ForeignKey(SignatureEnvelope, on_delete=models.CASCADE, related_name='recipients')
-    
-    # Recipient information
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='signature_recipients')
     email = models.EmailField()
     full_name = models.CharField(max_length=200)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_SIGNER)
-    
-    # Signing order
     signing_order = models.IntegerField(default=0, help_text="Order in which this recipient signs")
-    
-    # Status tracking
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
-    
-    # Signing token for secure access
+
     signing_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    
-    # Timestamps
+
     created_at = models.DateTimeField(auto_now_add=True)
     signed_at = models.DateTimeField(null=True, blank=True)
     viewed_at = models.DateTimeField(null=True, blank=True)
     reminded_at = models.DateTimeField(null=True, blank=True)
-    
-    # Decline reason
+
     decline_reason = models.TextField(blank=True)
     saved_signature = models.TextField(blank=True, null=True)
     saved_signature_path = models.CharField(max_length=500, blank=True, null=True)
@@ -985,29 +933,23 @@ class SignatureField(models.Model):
     ]
     
     field_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    
-    # Associated objects
+
     envelope = models.ForeignKey(SignatureEnvelope, on_delete=models.CASCADE, related_name='fields')
     recipient = models.ForeignKey(SignatureRecipient, on_delete=models.CASCADE, related_name='fields')
-    
-    # Field properties
+
     field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default=FIELD_TYPE_SIGNATURE)
     label = models.CharField(max_length=100, blank=True, help_text="Field label (e.g., 'Sign Here')")
-    
-    # Position on PDF
+
     page_number = models.IntegerField()
     x_position = models.FloatField()
     y_position = models.FloatField()
     width = models.FloatField(default=150)
     height = models.FloatField(default=50)
-    
-    # Required/optional
+
     required = models.BooleanField(default=True)
-    
-    # Value after signing
+
     signed_value = models.TextField(blank=True)
-    
-    # Timestamp
+
     created_at = models.DateTimeField(auto_now_add=True)
     filled_at = models.DateTimeField(null=True, blank=True)
     
@@ -1035,29 +977,23 @@ class SignatureField(models.Model):
     ]
     
     field_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    
-    # Associated objects
+
     envelope = models.ForeignKey(SignatureEnvelope, on_delete=models.CASCADE, related_name='fields')
     recipient = models.ForeignKey(SignatureRecipient, on_delete=models.CASCADE, related_name='fields')
-    
-    # Field properties
+
     field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default=FIELD_TYPE_SIGNATURE)
     label = models.CharField(max_length=100, blank=True, help_text="Field label (e.g., 'Sign Here')")
-    
-    # Position on PDF
+
     page_number = models.IntegerField()
     x_position = models.FloatField()
     y_position = models.FloatField()
     width = models.FloatField(default=150)
     height = models.FloatField(default=50)
-    
-    # Required/optional
+
     required = models.BooleanField(default=True)
-    
-    # Value after signing
+
     signed_value = models.TextField(blank=True)
-    
-    # Timestamp
+
     created_at = models.DateTimeField(auto_now_add=True)
     filled_at = models.DateTimeField(null=True, blank=True)
     
@@ -1085,10 +1021,9 @@ class DeletionRequest(models.Model):
 
     request_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     request_type = models.CharField(max_length=10, choices=REQUEST_TYPES)
-    
-    # For files
+
     item_file = models.ForeignKey('ItemFile', on_delete=models.SET_NULL, null=True, blank=True)
-    # For folders
+
     item_folder = models.ForeignKey('ItemFolder', on_delete=models.SET_NULL, null=True, blank=True)
     
     requested_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='deletion_requests')
