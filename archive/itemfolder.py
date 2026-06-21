@@ -96,51 +96,12 @@ def item_folders_api(request, item_id):
 
 
 
-
-# @login_required
-# @admin_or_manager_required
-# @require_http_methods(['POST'])
-# def add_file_to_folder(request, folder_id):
-#     if request.user.is_system_admin() or request.user.is_archive_manager():
-#         folder = get_object_or_404(ItemFolder, id=folder_id)
-#     else:
-#         folder = get_object_or_404(ItemFolder, id=folder_id, user=request.user)
-    
-#     uploaded_file = request.FILES.get('file')
-#     if not uploaded_file:
-#         return JsonResponse({'error': 'No file provided'}, status=400)
-    
-#     asset_uuid = uuid.uuid4()
-#     path = f'item_folders/{asset_uuid}/{uploaded_file.name}'
-#     saved_path = default_storage.save(path, uploaded_file)
-    
-#     ItemFile.objects.create(
-#         folder=folder,
-#         asset_uuid=asset_uuid,
-#         file_name=uploaded_file.name,
-#         file_size=uploaded_file.size,
-#         mime_type=uploaded_file.content_type,
-#         stored_path=saved_path,
-#     )
-#     return JsonResponse({
-#         'asset_uuid': str(asset_uuid),
-#         'file_name': uploaded_file.name,
-#         'file_size': uploaded_file.size,
-#         'mime_type': uploaded_file.content_type
-#     })
-
-
 def get_next_version(current_version, existing_versions):
-    """
-    Given the current version (e.g., 'v1.0') and a list of existing versions (strings),
-    return the next version (e.g., 'v1.1').
-    If the current version is older than some existing, still increment from the max.
-    """
+
     import re
     max_version_num = 0
     pattern = re.compile(r'v\d+\.(\d+)')
     
-    # Check all existing versions including the current one (if we decide to override)
     for v in existing_versions:
         match = pattern.search(v)
         if match:
@@ -148,10 +109,8 @@ def get_next_version(current_version, existing_versions):
             if minor > max_version_num:
                 max_version_num = minor
     
-    # If current version's minor is greater than any existing, use current+1? But we want increment.
-    # Actually we should increment from the highest found.
+
     next_minor = max_version_num + 1
-    # Keep the major part as 'v1' (we could extract from current_version)
     major_match = re.search(r'(v\d+\.)', current_version)
     major = major_match.group(1) if major_match else 'v1.'
     return f"{major}{next_minor}"
@@ -168,7 +127,6 @@ from django.core.exceptions import ValidationError
 @admin_or_manager_required
 @require_http_methods(['POST'])
 def add_file_to_folder(request, folder_id):
-#     # Permission check
     if request.user.is_system_admin() or request.user.is_archive_manager():
         folder = get_object_or_404(ItemFolder, id=folder_id)
     else:
@@ -178,7 +136,6 @@ def add_file_to_folder(request, folder_id):
     if not uploaded_file:
         return JsonResponse({'error': 'No file provided'}, status=400)
 
-    # Validate and parse file name
     try:
         parsed = validate_file_naming_convention(uploaded_file.name)
     except ValidationError as e:
@@ -191,9 +148,7 @@ def add_file_to_folder(request, folder_id):
     current_version = parsed['version']
     ext = parsed['extension']
 
-    # Find all files in the same folder with the same obligor, doc_type, date
-    # We need to match by the stored file name pattern. Since file_name is stored as original name,
-    # we can fetch all files in the folder and parse their names.
+
     existing_files = ItemFile.objects.filter(folder=folder, is_deleted=False)
     existing_versions = []
     for ef in existing_files:
@@ -206,7 +161,6 @@ def add_file_to_folder(request, folder_id):
         except ValidationError:
             continue  # skip files that don't match naming convention
 
-    # Compute new version
     if existing_versions:
         # Extract minor numbers
         import re
@@ -216,23 +170,17 @@ def add_file_to_folder(request, folder_id):
             if m:
                 minors.append(int(m.group(1)))
         max_minor = max(minors) if minors else 0
-        # Increment minor from the maximum
         new_minor = max_minor + 1
-        # Keep major part (e.g., v1.) from current_version
         major_match = re.search(r'(v\d+\.)', current_version)
         major = major_match.group(1) if major_match else 'v1.'
         new_version = f"{major}{new_minor}"
     else:
         new_version = current_version
 
-    # Build the new file name
     new_file_name = f"{obligor}_{doc_type}_{date_str}_{new_version}{ext}"
-    # If you want to preserve the original name in the file system, you can keep as is,
-    # but you might want to store the new name in the database.
-    # We'll rename the file object before saving.
+
     uploaded_file.name = new_file_name
 
-    # Now save the file with the new name
     asset_uuid = uuid.uuid4()
     path = f'item_folders/{asset_uuid}/{new_file_name}'
     saved_path = default_storage.save(path, uploaded_file)
@@ -276,10 +224,6 @@ def delete_item_folder(request, folder_id):
     
     return JsonResponse({'status': 'soft_deleted'})
 
-
-
-
-
 from django.utils import timezone
 
 @login_required
@@ -296,8 +240,6 @@ def delete_item_file(request, asset_uuid):
     file_obj.is_deleted = True
     file_obj.deleted_at = timezone.now()
     file_obj.save()
-    
-
     
     return JsonResponse({'status': 'soft_deleted'})
 
@@ -320,7 +262,6 @@ def folder_type_manage(request):
                 parent_id = data.get('parent_id') or None
                 description = data.get('description', '')
                 
-                # If order not provided, auto‑calculate for subfolders
                 order = data.get('order')
                 if order is None and parent_id is not None:
                     from django.db.models import Max
@@ -360,7 +301,6 @@ def folder_type_manage(request):
                 return JsonResponse({'status': 'ok'})
 
         except IntegrityError as e:
-            # Provide user-friendly message
             if 'duplicate key' in str(e).lower():
                 msg = "A folder type with this order (under the same parent) already exists. Please choose a different order number."
             else:
@@ -423,9 +363,6 @@ def add_files_to_shared_folder(request, pk):
         item_file = get_object_or_404(ItemFile, pk=fid)
         SharedFolderFile.objects.get_or_create(shared_folder=folder, item_file=item_file)
     return JsonResponse({'status': 'ok'})
-
-
-
 
 
 @login_required

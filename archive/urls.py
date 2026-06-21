@@ -161,5 +161,7 @@ urlpatterns = [
     path('api/reject-deletion/<int:request_id>/', itemfolder.reject_deletion, name='reject_deletion'),
     path('folders/<int:folder_id>/deleted-files/', itemfolder.deleted_folder_files, name='deleted_folder_files'),
     path('folders/<int:folder_id>/files/', itemfolder.folder_files, name='folder_files'),
+    
+    path('download-pdf/', views_signature.download_pdf, name='download_pdf'),
 
 ]

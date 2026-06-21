@@ -694,54 +694,54 @@ class DigitalSignature(models.Model):
         return f"Signature on {target} by {self.signed_by}"
 
 
-class SignatureEnvelope(models.Model):
-    """Similar to Adobe Sign 'Agreement' - contains documents and signers"""
-    STATUS_DRAFT = 'draft'
-    STATUS_SENT = 'sent'
-    STATUS_IN_PROGRESS = 'in_progress'
-    STATUS_COMPLETED = 'completed'
-    STATUS_DECLINED = 'declined'
-    STATUS_EXPIRED = 'expired'
-    STATUS_VOIDED = 'voided'
+# class SignatureEnvelope(models.Model):
+#     """Similar to Adobe Sign 'Agreement' - contains documents and signers"""
+#     STATUS_DRAFT = 'draft'
+#     STATUS_SENT = 'sent'
+#     STATUS_IN_PROGRESS = 'in_progress'
+#     STATUS_COMPLETED = 'completed'
+#     STATUS_DECLINED = 'declined'
+#     STATUS_EXPIRED = 'expired'
+#     STATUS_VOIDED = 'voided'
     
-    STATUS_CHOICES = [
-        (STATUS_DRAFT, 'Draft'),
-        (STATUS_SENT, 'Sent'),
-        (STATUS_IN_PROGRESS, 'In Progress'),
-        (STATUS_COMPLETED, 'Completed'),
-        (STATUS_DECLINED, 'Declined'),
-        (STATUS_EXPIRED, 'Expired'),
-        (STATUS_VOIDED, 'Voided'),
-    ]
+#     STATUS_CHOICES = [
+#         (STATUS_DRAFT, 'Draft'),
+#         (STATUS_SENT, 'Sent'),
+#         (STATUS_IN_PROGRESS, 'In Progress'),
+#         (STATUS_COMPLETED, 'Completed'),
+#         (STATUS_DECLINED, 'Declined'),
+#         (STATUS_EXPIRED, 'Expired'),
+#         (STATUS_VOIDED, 'Voided'),
+#     ]
     
-    envelope_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+#     envelope_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     
-    item_file = models.ForeignKey('ItemFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
-    document_file = models.ForeignKey('DocumentFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
-    title = models.CharField(max_length=255)
-    message = models.TextField(blank=True, help_text="Message to signers")
-    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_envelopes')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    signing_order = models.CharField(max_length=20, choices=[('parallel', 'Parallel'), ('sequential', 'Sequential')], default='parallel')
-    reminder_days = models.IntegerField(default=3, help_text="Days between reminders")
-    expires_days = models.IntegerField(default=30, help_text="Days until envelope expires")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    sent_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    signed_document = models.FileField(upload_to='signed_envelopes/', null=True, blank=True)
+#     item_file = models.ForeignKey('ItemFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
+#     document_file = models.ForeignKey('DocumentFile', on_delete=models.CASCADE, null=True, blank=True, related_name='envelopes')
+#     title = models.CharField(max_length=255)
+#     message = models.TextField(blank=True, help_text="Message to signers")
+#     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_envelopes')
+#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+#     signing_order = models.CharField(max_length=20, choices=[('parallel', 'Parallel'), ('sequential', 'Sequential')], default='parallel')
+#     reminder_days = models.IntegerField(default=3, help_text="Days between reminders")
+#     expires_days = models.IntegerField(default=30, help_text="Days until envelope expires")
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+#     sent_at = models.DateTimeField(null=True, blank=True)
+#     completed_at = models.DateTimeField(null=True, blank=True)
+#     signed_document = models.FileField(upload_to='signed_envelopes/', null=True, blank=True)
     
-    class Meta:
-        indexes = [
-            models.Index(fields=['status', 'created_at']),
-            models.Index(fields=['created_by', 'status']),
-        ]
+#     class Meta:
+#         indexes = [
+#             models.Index(fields=['status', 'created_at']),
+#             models.Index(fields=['created_by', 'status']),
+#         ]
     
-    def __str__(self):
-        return f"{self.title} - {self.get_status_display()}"
+#     def __str__(self):
+#         return f"{self.title} - {self.get_status_display()}"
     
-    def get_document(self):
-        return self.item_file or self.document_file
+#     def get_document(self):
+#         return self.item_file or self.document_file
 
 
 
@@ -961,47 +961,47 @@ class SignatureField(models.Model):
 
 
 
-class SignatureField(models.Model):
-    """Stores signature field positions - like dragging fields in Adobe Sign"""
-    FIELD_TYPE_SIGNATURE = 'signature'
-    FIELD_TYPE_INITIAL = 'initial'
-    FIELD_TYPE_DATE = 'date'
-    FIELD_TYPE_TEXT = 'text'
-    FIELD_TYPE_CHECKBOX = 'checkbox'
-    FIELD_TYPE_CHOICES = [
-        (FIELD_TYPE_SIGNATURE, 'Signature'),
-        (FIELD_TYPE_INITIAL, 'Initials'),
-        (FIELD_TYPE_DATE, 'Date Signed'),
-        (FIELD_TYPE_TEXT, 'Text Field'),
-        (FIELD_TYPE_CHECKBOX, 'Checkbox'),
-    ]
+# class SignatureField(models.Model):
+#     """Stores signature field positions - like dragging fields in Adobe Sign"""
+#     FIELD_TYPE_SIGNATURE = 'signature'
+#     FIELD_TYPE_INITIAL = 'initial'
+#     FIELD_TYPE_DATE = 'date'
+#     FIELD_TYPE_TEXT = 'text'
+#     FIELD_TYPE_CHECKBOX = 'checkbox'
+#     FIELD_TYPE_CHOICES = [
+#         (FIELD_TYPE_SIGNATURE, 'Signature'),
+#         (FIELD_TYPE_INITIAL, 'Initials'),
+#         (FIELD_TYPE_DATE, 'Date Signed'),
+#         (FIELD_TYPE_TEXT, 'Text Field'),
+#         (FIELD_TYPE_CHECKBOX, 'Checkbox'),
+#     ]
     
-    field_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+#     field_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
-    envelope = models.ForeignKey(SignatureEnvelope, on_delete=models.CASCADE, related_name='fields')
-    recipient = models.ForeignKey(SignatureRecipient, on_delete=models.CASCADE, related_name='fields')
+#     envelope = models.ForeignKey(SignatureEnvelope, on_delete=models.CASCADE, related_name='fields')
+#     recipient = models.ForeignKey(SignatureRecipient, on_delete=models.CASCADE, related_name='fields')
 
-    field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default=FIELD_TYPE_SIGNATURE)
-    label = models.CharField(max_length=100, blank=True, help_text="Field label (e.g., 'Sign Here')")
+#     field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default=FIELD_TYPE_SIGNATURE)
+#     label = models.CharField(max_length=100, blank=True, help_text="Field label (e.g., 'Sign Here')")
 
-    page_number = models.IntegerField()
-    x_position = models.FloatField()
-    y_position = models.FloatField()
-    width = models.FloatField(default=150)
-    height = models.FloatField(default=50)
+#     page_number = models.IntegerField()
+#     x_position = models.FloatField()
+#     y_position = models.FloatField()
+#     width = models.FloatField(default=150)
+#     height = models.FloatField(default=50)
 
-    required = models.BooleanField(default=True)
+#     required = models.BooleanField(default=True)
 
-    signed_value = models.TextField(blank=True)
+#     signed_value = models.TextField(blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    filled_at = models.DateTimeField(null=True, blank=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     filled_at = models.DateTimeField(null=True, blank=True)
     
-    class Meta:
-        ordering = ['page_number', 'y_position', 'x_position']
+#     class Meta:
+#         ordering = ['page_number', 'y_position', 'x_position']
     
-    def __str__(self):
-        return f"{self.get_field_type_display()} for {self.recipient.full_name} on page {self.page_number}"
+#     def __str__(self):
+#         return f"{self.get_field_type_display()} for {self.recipient.full_name} on page {self.page_number}"
 ######################################################################################################################################
 
 

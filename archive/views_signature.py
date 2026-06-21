@@ -218,7 +218,7 @@ def save_signature(request, token):
 
 
 def apply_signatures_to_pdf_from_json(envelope, recipient, fields_data):
-    debug_log = r'C:\inetpub\wwwroot\digital_archive\json_stamp.log'
+    debug_log = r'D:\digital_archive\json_stamp.log'
     def log(msg):
         try:
             with open(debug_log, 'a') as f:
@@ -289,7 +289,7 @@ from django.conf import settings
 from django.utils import timezone
 
 def apply_signatures_to_pdf(envelope, recipient, signature_images, post_data):
-    debug_log = r'C:\inetpub\wwwroot\digital_archive\pdf_stamp.log'
+    debug_log = r'D:\digital_archive\pdf_stamp.log'
     def log(msg):
         try:
             with open(debug_log, 'a') as f:
@@ -434,7 +434,7 @@ def sign_portal(request, token):
             return redirect('archive:signature_declined')
 
         elif action == 'sign':
-            debug_log = r'C:\inetpub\wwwroot\digital_archive\sign_submit.log'
+            debug_log = r'D:\digital_archive\sign_submit.log'
             def log(msg):
                 try:
                     with open(debug_log, 'a') as f:
@@ -871,7 +871,7 @@ from django.utils import timezone
 User = get_user_model()
 
 def search_users(request):
-    debug_log = r'C:\inetpub\wwwroot\digital_archive\search_debug.log'
+    debug_log = r'D:\digital_archive\search_debug.log'
     try:
         with open(debug_log, 'a') as f:
             f.write(f"\n=== {timezone.now()} - search_users called ===\n")
@@ -977,3 +977,168 @@ def remove_recipient(request, recipient_id):
         recipient.delete()
         messages.success(request, f"Removed {recipient_name} from recipients.")
     return redirect('archive:envelope_detail', envelope_id=envelope.id)
+
+
+from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import json
+import io
+import os
+from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+def create_letter(request):
+    return render(request, 'create_letter.html')
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def download_pdf(request):
+    try:
+        # Parse JSON data
+        data = json.loads(request.body)
+        title = data.get('title', 'Letter')
+        content = data.get('content', '')
+        
+        if not content:
+            return JsonResponse({'error': 'No content provided'}, status=400)
+        
+        # Create HTML content for PDF
+        html_content = create_pdf_html(title, content)
+        
+        # Generate PDF
+        result = io.BytesIO()
+        
+        # Use pisa with simpler CSS
+        pdf = pisa.pisaDocument(
+            io.BytesIO(html_content.encode("UTF-8")), 
+            result,
+            encoding='UTF-8'
+        )
+        
+        if pdf.err:
+            logger.error(f"PDF generation error: {pdf.err}")
+            return JsonResponse({'error': 'PDF generation failed'}, status=500)
+        
+        # Return PDF
+        response = HttpResponse(result.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{title}.pdf"'
+        response['Content-Length'] = len(result.getvalue())
+        return response
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {e}")
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+def create_pdf_html(title, content):
+    """Create HTML content for PDF with header and footer - SIMPLIFIED CSS"""
+    
+    # Get the path to static files
+    static_path = settings.STATIC_ROOT if settings.STATIC_ROOT else settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
+    
+    # Header and footer HTML
+    header_html = ''
+    footer_html = ''
+    
+    if static_path:
+        header_path = os.path.join(static_path, 'images', 'ecologo.png')
+        footer_path = os.path.join(static_path, 'images', 'ecologo.png')
+        
+        if os.path.exists(header_path):
+            header_html = f'<img src="file://{header_path}" alt="Header" style="width:100%;display:block;">'
+        else:
+            header_html = '<div style="padding:20px;background:#1a3c6e;color:white;text-align:center;font-size:24px;font-weight:bold;font-family:Arial,sans-serif;">ECOBANK<br><span style="font-size:12px;font-weight:normal;">The Pan African Bank</span></div>'
+        
+        if os.path.exists(footer_path):
+            footer_html = f'<img src="file://{footer_path}" alt="Footer" style="width:100%;display:block;">'
+        else:
+            footer_html = '<div style="padding:15px;background:#1a3c6e;color:white;text-align:center;font-size:12px;font-family:Arial,sans-serif;">ECOBANK - The Pan African Bank</div>'
+    else:
+        header_html = '<div style="padding:20px;background:#1a3c6e;color:white;text-align:center;font-size:24px;font-weight:bold;font-family:Arial,sans-serif;">ECOBANK<br><span style="font-size:12px;font-weight:normal;">The Pan African Bank</span></div>'
+        footer_html = '<div style="padding:15px;background:#1a3c6e;color:white;text-align:center;font-size:12px;font-family:Arial,sans-serif;">ECOBANK - The Pan African Bank</div>'
+    
+    # SIMPLIFIED HTML - NO @page with element() that causes errors
+    html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{title}</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: 'Times New Roman', Times, serif;
+            background: white;
+        }}
+        .page {{
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+        }}
+        .header {{
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid #ddd;
+        }}
+        .header img {{
+            width: 100%;
+            display: block;
+        }}
+        .footer {{
+            width: 100%;
+            background: white;
+            border-top: 1px solid #ddd;
+            margin-top: 20px;
+        }}
+        .footer img {{
+            width: 100%;
+            display: block;
+        }}
+        .content {{
+            padding: 30px 60px 20px 60px;
+            line-height: 1.8;
+            font-size: 12pt;
+        }}
+        .title {{
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 30px;
+            font-family: 'Times New Roman', Times, serif;
+        }}
+        .content p {{
+            margin-bottom: 10px;
+        }}
+        .page-break {{
+            page-break-after: always;
+            border-bottom: 2px dashed #ccc;
+            margin: 20px 0;
+            padding: 10px;
+            text-align: center;
+            color: #999;
+        }}
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            {header_html}
+        </div>
+        <div class="content">
+            <div class="title">{title}</div>
+            {content}
+        </div>
+        <div class="footer">
+            {footer_html}
+        </div>
+    </div>
+</body>
+</html>'''
+    
+    return html
